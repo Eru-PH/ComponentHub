@@ -14,8 +14,10 @@ export const addComponent = (componentData) => api.post('/api/components', compo
 // Borrow & return endpoints
 export const borrowComponent = (borrowData) => api.post('/api/borrow', borrowData);
 export const getBorrowLogs = () => api.get('/api/borrow-logs');
-export const returnComponent = (logId) => api.patch(`/api/return/${logId}`);
-
+export const returnComponent = (logId, return_quality = 'Good') => api.patch(`/api/return/${logId}`,
+  { return_quality: return_quality }
+);
+  
 // CSV export
 export const getExportLogsUrl = () => `${api.defaults.baseURL}/api/logs/export`;
 

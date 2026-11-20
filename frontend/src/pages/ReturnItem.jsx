@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RotateCcw, ArrowLeft, RefreshCw, Search } from 'lucide-react';
+import { RotateCcw, ArrowLeft, RefreshCw, Search, Filter } from 'lucide-react';
 import { getBorrowLogs, returnComponent } from '../services/api';
 import Navbar from '../components/Navbar';
+
+const RETURN_QUALITIES = ['Good', 'Fair', 'Damaged'];
 
 export default function ReturnItem({
   user,
@@ -14,6 +16,8 @@ export default function ReturnItem({
   const [loading, setLoading] = useState(false);
   const [returningId, setReturningId] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedComponentFilter, setSelectedComponentFilter] = useState('ALL');
+  const [qualityByLogId, setQualityByLogId] = useState({});
 
   const fetchLogs = async () => {
     try {
@@ -31,25 +35,92 @@ export default function ReturnItem({
     fetchLogs();
   }, []);
 
+  // All unreturned logs (scoped to current student if not admin and user is present)
+  const unreturnedLogs = useMemo(() => {
+    const active = borrowLogs.filter((log) => !log.returned_at);
+
+    if (!isAdmin && user?.full_name) {
+      const normalizedUser = user.full_name.trim().toLowerCase();
+      const matchingUserLogs = active.filter(
+        (log) => (log.borrower_name || '').trim().toLowerCase() === normalizedUser
+      );
+      if (matchingUserLogs.length > 0) {
+        return matchingUserLogs;
+      }
+    }
+
+    return active;
+  }, [borrowLogs, isAdmin, user]);
+
+  // Dropdown options built from the components present in active borrowed logs
+  const borrowedComponentOptions = useMemo(() => {
+    const map = new Map();
+
+    unreturnedLogs.forEach((log) => {
+      const key = String(log.component_id || log.components?.name || log.id);
+      const label = log.components?.name || `Component #${String(log.component_id || '').slice(0, 8)}`;
+      const existing = map.get(key);
+
+      if (existing) {
+        existing.totalQty += Number(log.quantity_borrowed) || 0;
+        existing.logCount += 1;
+      } else {
+        map.set(key, {
+          key,
+          label,
+          totalQty: Number(log.quantity_borrowed) || 0,
+          logCount: 1,
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [unreturnedLogs]);
+
+  // Reset component dropdown if that component no longer has active borrows
+  useEffect(() => {
+    if (
+      selectedComponentFilter !== 'ALL' &&
+      !borrowedComponentOptions.some((opt) => opt.key === selectedComponentFilter)
+    ) {
+      setSelectedComponentFilter('ALL');
+    }
+  }, [borrowedComponentOptions, selectedComponentFilter]);
+
   const activeBorrows = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    return borrowLogs
-      .filter((log) => !log.returned_at)
-      .filter((log) => {
-        if (!query) return true;
-        const borrower = (log.borrower_name || '').toLowerCase();
-        const componentName = (
-          log.components?.name || String(log.component_id || '')
-        ).toLowerCase();
-        return borrower.includes(query) || componentName.includes(query);
-      });
-  }, [borrowLogs, searchTerm]);
+
+    return unreturnedLogs.filter((log) => {
+      const logCompKey = String(log.component_id || log.components?.name || log.id);
+      const matchesDropdown =
+        selectedComponentFilter === 'ALL' || logCompKey === selectedComponentFilter;
+
+      if (!matchesDropdown) return false;
+      if (!query) return true;
+
+      const borrower = (log.borrower_name || '').toLowerCase();
+      const componentName = (
+        log.components?.name || String(log.component_id || '')
+      ).toLowerCase();
+
+      return borrower.includes(query) || componentName.includes(query);
+    });
+  }, [unreturnedLogs, selectedComponentFilter, searchTerm]);
+
+  const handleQualityChange = (logId, value) => {
+    setQualityByLogId((prev) => ({
+      ...prev,
+      [logId]: value,
+    }));
+  };
 
   const handleReturn = async (logId) => {
+    const chosenQuality = qualityByLogId[logId] || 'Good';
+
     try {
       setReturningId(logId);
-      await returnComponent(logId);
-      alert('Item returned and inventory stock updated!');
+      await returnComponent(logId, chosenQuality);
+      alert(`Item returned with quality "${chosenQuality}" and inventory updated!`);
       await fetchLogs();
     } catch (err) {
       alert(
@@ -85,8 +156,8 @@ export default function ReturnItem({
               Borrowed Equipment
             </h2>
             <p className="text-xs text-neutral-400">
-              Select an active checkout below to return hardware and restore
-              stock.
+              Filter by borrowed component, select return condition, and check in
+              hardware.
             </p>
           </div>
 
@@ -115,7 +186,7 @@ export default function ReturnItem({
         </div>
 
         {/* Summary & Filter Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-[#1c1c1c] p-4 rounded-lg border border-neutral-800 shadow-lg">
             <div className="text-[11px] font-bold uppercase text-neutral-400">
               Items Awaiting Return
@@ -124,7 +195,39 @@ export default function ReturnItem({
               {activeBorrows.length}
             </div>
             <div className="text-xs text-neutral-400 mt-1">
-              Active unreturned records
+              {selectedComponentFilter === 'ALL'
+                ? `${unreturnedLogs.length} total active records`
+                : 'Filtered by selected component'}
+            </div>
+          </div>
+
+          <div className="bg-[#1c1c1c] p-4 rounded-lg border border-neutral-800 shadow-lg flex flex-col justify-center">
+            <label
+              htmlFor="borrowed-component-select"
+              className="block text-xs font-semibold uppercase text-neutral-400 mb-1.5"
+            >
+              Borrowed Component
+            </label>
+            <div className="relative">
+              <Filter
+                size={14}
+                className="text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+              />
+              <select
+                id="borrowed-component-select"
+                value={selectedComponentFilter}
+                onChange={(e) => setSelectedComponentFilter(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-[#141414] border border-neutral-700 rounded text-neutral-100 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              >
+                <option value="ALL">
+                  All Borrowed Components ({unreturnedLogs.length})
+                </option>
+                {borrowedComponentOptions.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label} ({item.totalQty} out)
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -169,41 +272,62 @@ export default function ReturnItem({
                     <th className="p-3">Borrower</th>
                     <th className="p-3">Component</th>
                     <th className="p-3">Qty</th>
+                    <th className="p-3">Return Quality</th>
                     <th className="p-3">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-neutral-800/80">
-                  {activeBorrows.map((log) => (
-                    <tr
-                      key={log.id}
-                      className="hover:bg-neutral-800/30 transition"
-                    >
-                      <td className="p-3 font-mono text-xs text-neutral-500">
-                        #{String(log.id).slice(0, 8)}
-                      </td>
-                      <td className="p-3 font-medium text-neutral-100">
-                        {log.borrower_name}
-                      </td>
-                      <td className="p-3 text-neutral-300">
-                        {log.components?.name || log.component_id}
-                      </td>
-                      <td className="p-3 font-semibold text-neutral-100">
-                        {log.quantity_borrowed}
-                      </td>
-                      <td className="p-3">
-                        <button
-                          type="button"
-                          disabled={returningId === log.id}
-                          onClick={() => handleReturn(log.id)}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded text-xs font-semibold disabled:opacity-60 transition"
-                        >
-                          {returningId === log.id
-                            ? 'Returning...'
-                            : 'Return Item'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {activeBorrows.map((log) => {
+                    const currentQuality = qualityByLogId[log.id] || 'Good';
+
+                    return (
+                      <tr
+                        key={log.id}
+                        className="hover:bg-neutral-800/30 transition"
+                      >
+                        <td className="p-3 font-mono text-xs text-neutral-500">
+                          #{String(log.id).slice(0, 8)}
+                        </td>
+                        <td className="p-3 font-medium text-neutral-100">
+                          {log.borrower_name}
+                        </td>
+                        <td className="p-3 text-neutral-300">
+                          {log.components?.name || log.component_id}
+                        </td>
+                        <td className="p-3 font-semibold text-neutral-100">
+                          {log.quantity_borrowed}
+                        </td>
+                        <td className="p-3">
+                          <select
+                            aria-label={`Return quality for ${log.components?.name || log.id}`}
+                            value={currentQuality}
+                            onChange={(e) =>
+                              handleQualityChange(log.id, e.target.value)
+                            }
+                            className="bg-[#141414] border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-100 focus:outline-none focus:border-emerald-500"
+                          >
+                            {RETURN_QUALITIES.map((quality) => (
+                              <option key={quality} value={quality}>
+                                {quality}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            disabled={returningId === log.id}
+                            onClick={() => handleReturn(log.id)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded text-xs font-semibold disabled:opacity-60 transition"
+                          >
+                            {returningId === log.id
+                              ? 'Returning...'
+                              : 'Return Item'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

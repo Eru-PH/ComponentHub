@@ -12,6 +12,8 @@ const supabase = createClient(
   process.env.SUPABASE_PUBLISHABLE_KEY
 );
 
+const ALLOWED_RETURN_QUALITIES = ['Good', 'Fair', 'Damaged'];
+
 app.get('/', (req, res) => {
   res.send('ComponentHub Backend API is running!');
 });
@@ -69,6 +71,13 @@ app.post('/api/components', async (req, res) => {
 // Borrow Item (Check-out)
 app.post('/api/borrow', async (req, res) => {
   const { component_id, borrower_name, quantity_borrowed } = req.body;
+  const qtyToBorrow = Number(quantity_borrowed) || 0;
+
+  if (!component_id || !borrower_name || qtyToBorrow <= 0) {
+    return res.status(400).json({
+      error: 'component_id, borrower_name, and a positive quantity_borrowed are required.',
+    });
+  }
 
   const { data: comp, error: compError } = await supabase
     .from('components')
@@ -76,32 +85,58 @@ app.post('/api/borrow', async (req, res) => {
     .eq('id', component_id)
     .single();
 
-  if (compError || !comp) return res.status(404).json({ error: 'Component not found' });
-  if (comp.quantity < quantity_borrowed) {
+  if (compError || !comp) {
+    return res.status(404).json({ error: 'Component not found' });
+  }
+
+  if (Number(comp.quantity) < qtyToBorrow) {
     return res.status(400).json({ error: 'Not enough stock available to borrow.' });
   }
 
   const { data: logData, error: logError } = await supabase
     .from('borrow_logs')
-    .insert([{ component_id, borrower_name, quantity_borrowed, status: 'Borrowed' }])
+    .insert([
+      {
+        component_id,
+        borrower_name: borrower_name.trim(),
+        quantity_borrowed: qtyToBorrow,
+        status: 'Borrowed',
+      },
+    ])
     .select();
 
-  if (logError) return res.status(400).json({ error: logError.message });
+  if (logError) {
+    return res.status(400).json({ error: logError.message });
+  }
 
-  const newQty = comp.quantity - quantity_borrowed;
+  const newQty = Number(comp.quantity) - qtyToBorrow;
   const newStatus = newQty === 0 ? 'Borrowed Out' : 'Available';
 
-  await supabase
+  const { error: updateCompError } = await supabase
     .from('components')
     .update({ quantity: newQty, status: newStatus })
     .eq('id', component_id);
 
-  res.status(201).json({ message: 'Component successfully checked out!', log: logData[0] });
+  if (updateCompError) {
+    return res.status(400).json({ error: updateCompError.message });
+  }
+
+  res.status(201).json({
+    message: 'Component successfully checked out!',
+    log: logData[0],
+  });
 });
 
-// Return Item (Check-in)
+// Return Item (Check-in) with return_quality
 app.patch('/api/return/:logId', async (req, res) => {
   const { logId } = req.params;
+  const requestedQuality = req.body?.return_quality || 'Good';
+
+  if (!ALLOWED_RETURN_QUALITIES.includes(requestedQuality)) {
+    return res.status(400).json({
+      error: 'Invalid return_quality. Must be Good, Fair, or Damaged.',
+    });
+  }
 
   const { data: log, error: logError } = await supabase
     .from('borrow_logs')
@@ -121,7 +156,11 @@ app.patch('/api/return/:logId', async (req, res) => {
 
   const { error: updateLogError } = await supabase
     .from('borrow_logs')
-    .update({ status: 'Returned', returned_at: returnedAt })
+    .update({
+      status: 'Returned',
+      returned_at: returnedAt,
+      return_quality: requestedQuality,
+    })
     .eq('id', logId);
 
   if (updateLogError) {
@@ -130,7 +169,7 @@ app.patch('/api/return/:logId', async (req, res) => {
 
   const { data: component, error: compError } = await supabase
     .from('components')
-    .select('id, quantity')
+    .select('id, quantity, status')
     .eq('id', log.component_id)
     .single();
 
@@ -138,13 +177,26 @@ app.patch('/api/return/:logId', async (req, res) => {
     return res.status(404).json({ error: 'Component not found.' });
   }
 
-  const updatedQuantity = Number(component.quantity) + Number(log.quantity_borrowed);
+  const isDamagedReturn = requestedQuality === 'Damaged';
+  const currentQty = Number(component.quantity) || 0;
+  const borrowedQty = Number(log.quantity_borrowed) || 0;
+
+  const updatedQuantity = isDamagedReturn
+    ? currentQty
+    : currentQty + borrowedQty;
+
+  const nextStatus =
+    isDamagedReturn && updatedQuantity === 0
+      ? 'Damaged'
+      : updatedQuantity > 0
+        ? 'Available'
+        : 'Unavailable';
 
   const { data: updatedComponent, error: updateCompError } = await supabase
     .from('components')
     .update({
       quantity: updatedQuantity,
-      status: updatedQuantity > 0 ? 'Available' : 'Unavailable',
+      status: nextStatus,
     })
     .eq('id', log.component_id)
     .select()
@@ -157,6 +209,7 @@ app.patch('/api/return/:logId', async (req, res) => {
   res.json({
     message: 'Item returned successfully.',
     returned_at: returnedAt,
+    return_quality: requestedQuality,
     component: updatedComponent,
   });
 });
@@ -170,6 +223,7 @@ app.get('/api/logs/export', async (req, res) => {
       borrower_name,
       quantity_borrowed,
       status,
+      return_quality,
       borrowed_at,
       returned_at,
       components ( name, category )
@@ -178,12 +232,16 @@ app.get('/api/logs/export', async (req, res) => {
 
   if (error) return res.status(400).json({ error: error.message });
 
-  let csv = 'Log ID,Component Name,Category,Borrower Name,Quantity,Status,Borrowed At,Returned At\n';
+  let csv =
+    'Log ID,Component Name,Category,Borrower Name,Quantity,Status,Return Quality,Borrowed At,Returned At\n';
 
   logs.forEach((log) => {
-    const compName = log.components?.name || 'Unknown';
-    const compCat = log.components?.category || 'Unknown';
-    csv += `"${log.id}","${compName}","${compCat}","${log.borrower_name}",${log.quantity_borrowed},"${log.status}","${log.borrowed_at}","${log.returned_at || 'Not Returned'}"\n`;
+    const compName = (log.components?.name || 'Unknown').replace(/"/g, '""');
+    const compCat = (log.components?.category || 'Unknown').replace(/"/g, '""');
+    const borrower = (log.borrower_name || '').replace(/"/g, '""');
+    const quality = log.return_quality || 'N/A';
+
+    csv += `"${log.id}","${compName}","${compCat}","${borrower}",${log.quantity_borrowed},"${log.status}","${quality}","${log.borrowed_at}","${log.returned_at || 'Not Returned'}"\n`;
   });
 
   res.header('Content-Type', 'text/csv');
@@ -191,7 +249,7 @@ app.get('/api/logs/export', async (req, res) => {
   res.send(csv);
 });
 
-// Get borrow logs with component info (with fallback if foreign key join isn't present)
+// Get borrow logs with component info
 app.get('/api/borrow-logs', async (req, res) => {
   const { data, error } = await supabase
     .from('borrow_logs')
@@ -207,7 +265,11 @@ app.get('/api/borrow-logs', async (req, res) => {
 
   if (error) {
     console.error('FULL SUPABASE ERROR:', JSON.stringify(error, null, 2));
-    return res.status(400).json({ error: error.message, details: error.details, hint: error.hint });
+    return res.status(400).json({
+      error: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
   }
 
   res.json(data || []);
