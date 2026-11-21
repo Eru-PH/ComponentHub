@@ -44,13 +44,40 @@ export default function Dashboard({ user, onLogout }) {
   }, []);
 
   const showingAdminView = isAdmin && activeTab === 'admin';
+
+  // Scope dashboard borrow logs to the logged-in account unless viewing as Admin
+  const visibleBorrowLogs = useMemo(() => {
+    if (showingAdminView) {
+      return borrowLogs;
+    }
+
+    const allowedBorrowers = [
+      user?.borrower_identity,
+      user?.borrower_key,
+      user?.full_name,
+      user?.email,
+    ]
+      .filter(Boolean)
+      .map((val) => String(val).trim().toLowerCase());
+
+    if (allowedBorrowers.length === 0) {
+      return [];
+    }
+
+    return borrowLogs.filter((log) => {
+      const logBorrower = (log.borrower_name || '').trim().toLowerCase();
+      return allowedBorrowers.includes(logBorrower);
+    });
+  }, [borrowLogs, showingAdminView, user]);
+
+  // Derive active & returned counts from visibleBorrowLogs
   const activeBorrows = useMemo(
-    () => borrowLogs.filter((log) => !log.returned_at),
-    [borrowLogs]
+    () => visibleBorrowLogs.filter((log) => !log.returned_at),
+    [visibleBorrowLogs]
   );
   const returnedBorrows = useMemo(
-    () => borrowLogs.filter((log) => Boolean(log.returned_at)),
-    [borrowLogs]
+    () => visibleBorrowLogs.filter((log) => Boolean(log.returned_at)),
+    [visibleBorrowLogs]
   );
   const totalStock = useMemo(
     () =>
@@ -77,6 +104,15 @@ export default function Dashboard({ user, onLogout }) {
   }, [components]);
 
   const handleNavigate = (target, sectionOrAnchor) => {
+    if (
+      target === 'admin' ||
+      target === 'admin-controls' ||
+      sectionOrAnchor === 'admin-controls'
+    ) {
+      setCurrentPage('admin');
+      return;
+    }
+
     if (target === 'return') {
       setCurrentPage('return');
       return;
@@ -101,6 +137,18 @@ export default function Dashboard({ user, onLogout }) {
     setStudentSection('overview');
     fetchDashboardData();
   };
+
+  if (currentPage === 'admin') {
+    return (
+      <AdminControls
+        user={user}
+        isAdmin={isAdmin}
+        onLogout={onLogout}
+        onNavigate={handleNavigate}
+        onBackToDashboard={handleBackToDashboard}
+      />
+    );
+  }
 
   if (currentPage === 'return') {
     return (
@@ -141,10 +189,14 @@ export default function Dashboard({ user, onLogout }) {
       onNavigate={handleNavigate}
     >
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
-        {/* Sub-Header & Refresh Button*/}
+        {/* Sub-Header & Refresh Button */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-neutral-400">
-            Overview of electronics inventory, active borrows, and returns.
+            {showingAdminView
+              ? 'Overview of electronics inventory, active borrows, and returns.'
+              : `Overview of electronics inventory and your personal borrow/return activity (${
+                  user?.full_name || user?.email || 'Student'
+                }).`}
           </p>
           <button
             type="button"
@@ -178,7 +230,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
                 <div className="text-xs font-bold uppercase text-neutral-400">
-                  Active Borrows
+                  {showingAdminView ? 'Active Borrows' : 'Your Active Borrows'}
                 </div>
                 <div className="text-3xl font-bold text-emerald-400 my-1">
                   {activeBorrows.length}
@@ -190,7 +242,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
                 <div className="text-xs font-bold uppercase text-neutral-400">
-                  Returned Items
+                  {showingAdminView ? 'Returned Items' : 'Your Returned Items'}
                 </div>
                 <div className="text-3xl font-bold text-white my-1">
                   {returnedBorrows.length}
@@ -202,13 +254,15 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
                 <div className="text-xs font-bold uppercase text-neutral-400">
-                  Total Borrow Logs
+                  {showingAdminView ? 'Total Borrow Logs' : 'Your Borrow Logs'}
                 </div>
                 <div className="text-3xl font-bold text-white my-1">
-                  {borrowLogs.length}
+                  {visibleBorrowLogs.length}
                 </div>
                 <div className="text-xs text-neutral-400">
-                  All recorded checkouts
+                  {showingAdminView
+                    ? 'All recorded checkouts'
+                    : 'Your recorded checkouts'}
                 </div>
               </div>
             </div>
@@ -262,9 +316,11 @@ export default function Dashboard({ user, onLogout }) {
                   Latest checkouts and returns
                 </p>
 
-                {borrowLogs.length === 0 ? (
+                {visibleBorrowLogs.length === 0 ? (
                   <p className="text-xs text-neutral-500">
-                    No borrow logs recorded yet.
+                    {showingAdminView
+                      ? 'No borrow logs recorded yet.'
+                      : 'No borrow logs recorded for your account yet.'}
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -279,7 +335,7 @@ export default function Dashboard({ user, onLogout }) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-800/80">
-                        {borrowLogs.slice(0, 6).map((log) => (
+                        {visibleBorrowLogs.slice(0, 6).map((log) => (
                           <tr
                             key={log.id}
                             className="hover:bg-neutral-800/30 transition"
@@ -334,9 +390,11 @@ export default function Dashboard({ user, onLogout }) {
               History
             </h2>
 
-            {borrowLogs.length === 0 ? (
+            {visibleBorrowLogs.length === 0 ? (
               <p className="text-sm text-neutral-400">
-                No borrow records found yet.
+                {showingAdminView
+                  ? 'No borrow records found yet.'
+                  : 'No borrow records found for your account yet.'}
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -351,7 +409,7 @@ export default function Dashboard({ user, onLogout }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-800/80">
-                    {borrowLogs.map((log) => (
+                    {visibleBorrowLogs.map((log) => (
                       <tr
                         key={log.id}
                         className="hover:bg-neutral-800/30 transition"

@@ -35,21 +35,31 @@ export default function ReturnItem({
     fetchLogs();
   }, []);
 
-  // All unreturned logs (scoped to current student if not admin and user is present)
+  // ✅ EDITED: Strictly show only the logged-in student's unreturned logs (no fallback to all rows)
   const unreturnedLogs = useMemo(() => {
     const active = borrowLogs.filter((log) => !log.returned_at);
 
-    if (!isAdmin && user?.full_name) {
-      const normalizedUser = user.full_name.trim().toLowerCase();
-      const matchingUserLogs = active.filter(
-        (log) => (log.borrower_name || '').trim().toLowerCase() === normalizedUser
-      );
-      if (matchingUserLogs.length > 0) {
-        return matchingUserLogs;
-      }
+    if (isAdmin) {
+      return active;
     }
 
-    return active;
+    const allowedBorrowers = [
+      user?.borrower_identity,
+      user?.borrower_key,
+      user?.full_name,
+      user?.email,
+    ]
+      .filter(Boolean)
+      .map((val) => String(val).trim().toLowerCase());
+
+    if (allowedBorrowers.length === 0) {
+      return [];
+    }
+
+    return active.filter((log) => {
+      const logBorrower = (log.borrower_name || '').trim().toLowerCase();
+      return allowedBorrowers.includes(logBorrower);
+    });
   }, [borrowLogs, isAdmin, user]);
 
   // Dropdown options built from the components present in active borrowed logs
@@ -58,7 +68,9 @@ export default function ReturnItem({
 
     unreturnedLogs.forEach((log) => {
       const key = String(log.component_id || log.components?.name || log.id);
-      const label = log.components?.name || `Component #${String(log.component_id || '').slice(0, 8)}`;
+      const label =
+        log.components?.name ||
+        `Component #${String(log.component_id || '').slice(0, 8)}`;
       const existing = map.get(key);
 
       if (existing) {
@@ -91,9 +103,12 @@ export default function ReturnItem({
     const query = searchTerm.trim().toLowerCase();
 
     return unreturnedLogs.filter((log) => {
-      const logCompKey = String(log.component_id || log.components?.name || log.id);
+      const logCompKey = String(
+        log.component_id || log.components?.name || log.id
+      );
       const matchesDropdown =
-        selectedComponentFilter === 'ALL' || logCompKey === selectedComponentFilter;
+        selectedComponentFilter === 'ALL' ||
+        logCompKey === selectedComponentFilter;
 
       if (!matchesDropdown) return false;
       if (!query) return true;
@@ -120,7 +135,9 @@ export default function ReturnItem({
     try {
       setReturningId(logId);
       await returnComponent(logId, chosenQuality);
-      alert(`Item returned with quality "${chosenQuality}" and inventory updated!`);
+      alert(
+        `Item returned with quality "${chosenQuality}" and inventory updated!`
+      );
       await fetchLogs();
     } catch (err) {
       alert(
@@ -155,9 +172,13 @@ export default function ReturnItem({
               <RotateCcw className="text-emerald-400" size={20} /> Return
               Borrowed Equipment
             </h2>
+            {/* ✅ EDITED: Role-aware helper text */}
             <p className="text-xs text-neutral-400">
-              Filter by borrowed component, select return condition, and check in
-              hardware.
+              {isAdmin
+                ? 'Filter by borrowed component, select return condition, and check in hardware.'
+                : `Showing active borrowed items for ${
+                    user?.full_name || user?.email || 'your account'
+                  }.`}
             </p>
           </div>
 
@@ -188,15 +209,18 @@ export default function ReturnItem({
         {/* Summary & Filter Bar */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-[#1c1c1c] p-4 rounded-lg border border-neutral-800 shadow-lg">
+            {/* ✅ EDITED: Role-aware metric title */}
             <div className="text-[11px] font-bold uppercase text-neutral-400">
-              Items Awaiting Return
+              {isAdmin ? 'Items Awaiting Return' : 'Your Borrowed Items'}
             </div>
             <div className="text-3xl font-bold text-emerald-400 mt-1">
               {activeBorrows.length}
             </div>
             <div className="text-xs text-neutral-400 mt-1">
               {selectedComponentFilter === 'ALL'
-                ? `${unreturnedLogs.length} total active records`
+                ? `${unreturnedLogs.length} total active record${
+                    unreturnedLogs.length === 1 ? '' : 's'
+                  }`
                 : 'Filtered by selected component'}
             </div>
           </div>
@@ -253,15 +277,19 @@ export default function ReturnItem({
 
         {/* Interactive Return Table */}
         <div className="bg-[#1c1c1c] p-6 rounded-lg border border-neutral-800 shadow-lg">
+          {/* ✅ EDITED: Role-aware table heading */}
           <h3 className="text-base font-bold text-white mb-4">
-            Active Borrowed Items
+            {isAdmin ? 'Active Borrowed Items' : 'Your Active Borrowed Items'}
           </h3>
 
           {loading ? (
             <p className="text-sm text-neutral-400">Loading active borrows...</p>
           ) : activeBorrows.length === 0 ? (
             <p className="text-sm text-neutral-400">
-              No active borrowed items match your current view.
+              {/* ✅ EDITED: Role-aware empty state message */}
+              {isAdmin
+                ? 'No active borrowed items match your current view.'
+                : 'You have no active borrowed items to return.'}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -299,7 +327,9 @@ export default function ReturnItem({
                         </td>
                         <td className="p-3">
                           <select
-                            aria-label={`Return quality for ${log.components?.name || log.id}`}
+                            aria-label={`Return quality for ${
+                              log.components?.name || log.id
+                            }`}
                             value={currentQuality}
                             onChange={(e) =>
                               handleQualityChange(log.id, e.target.value)

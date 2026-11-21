@@ -15,9 +15,12 @@ export default function BorrowItem({
   const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // ✅ EDITED: Use borrower_identity / full_name / email from login if available
+  const accountBorrowerName = user?.borrower_identity || user?.full_name || user?.email || '';
+
   const [borrowData, setBorrowData] = useState({
     component_id: '',
-    borrower_name: user?.full_name || '',
+    borrower_name: accountBorrowerName,
     quantity_borrowed: 1,
   });
 
@@ -37,14 +40,17 @@ export default function BorrowItem({
     fetchComponents();
   }, []);
 
+  // ✅ EDITED: Lock borrower_name to the logged-in student's account on login/update
   useEffect(() => {
-    if (user?.full_name) {
-      setBorrowData((prev) => ({
-        ...prev,
-        borrower_name: prev.borrower_name || user.full_name,
-      }));
-    }
-  }, [user]);
+    if (!user) return;
+    const resolvedName = user?.borrower_identity || user?.full_name || user?.email || '';
+    setBorrowData((prev) => ({
+      ...prev,
+      borrower_name: !isAdmin
+        ? resolvedName
+        : prev.borrower_name || resolvedName,
+    }));
+  }, [user, isAdmin]);
 
   const availableComponents = useMemo(
     () =>
@@ -82,16 +88,22 @@ export default function BorrowItem({
       return;
     }
 
+    // ✅ EDITED: Always submit the logged-in account name for non-admin users
+    const finalBorrowerName = !isAdmin
+      ? accountBorrowerName
+      : borrowData.borrower_name || accountBorrowerName;
+
     try {
       setSubmitting(true);
       await borrowComponent({
         ...borrowData,
+        borrower_name: finalBorrowerName,
         quantity_borrowed: Number(borrowData.quantity_borrowed) || 1,
       });
       alert('Item successfully checked out and inventory updated!');
       setBorrowData({
         component_id: '',
-        borrower_name: user?.full_name || '',
+        borrower_name: finalBorrowerName, // ✅ EDITED: Keep account name after submit
         quantity_borrowed: 1,
       });
       await fetchComponents();
@@ -130,7 +142,7 @@ export default function BorrowItem({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Package className="text-emerald-400" size={20} /> Borrow &amp;
+              <Package className="text-emerald-400" size={20} />
               Equipment Catalog
             </h2>
             <p className="text-xs text-neutral-400">
@@ -232,6 +244,7 @@ export default function BorrowItem({
               <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
                 Borrower Full Name
               </label>
+              {/* ✅ EDITED: Read-only for non-admin accounts so borrows always tie to the logged-in user */}
               <input
                 type="text"
                 value={borrowData.borrower_name}
@@ -241,9 +254,12 @@ export default function BorrowItem({
                     borrower_name: e.target.value,
                   })
                 }
+                readOnly={!isAdmin}
                 required
                 placeholder="Enter your full name"
-                className="w-full rounded bg-[#141414] border border-neutral-700 p-2 text-neutral-100 placeholder:text-neutral-500 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                className={`w-full rounded bg-[#141414] border border-neutral-700 p-2 text-neutral-100 placeholder:text-neutral-500 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 ${
+                  !isAdmin ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
               />
             </div>
 
