@@ -56,13 +56,23 @@ export default function Dashboard({ user, onLogout }) {
     });
   }, [borrowLogs, user]);
 
+  // Admins see all borrowers' logs (Student Test 1, Student Test 2, etc.); students see their own
+  const scopedBorrowLogs = useMemo(
+    () => (isAdmin ? borrowLogs : visibleBorrowLogs),
+    [isAdmin, borrowLogs, visibleBorrowLogs]
+  );
+
+  const recentActivityLogs = useMemo(() => {
+    return isAdmin ? scopedBorrowLogs : scopedBorrowLogs.slice(0, 6);
+  }, [isAdmin, scopedBorrowLogs]);
+
   const activeBorrows = useMemo(
-    () => visibleBorrowLogs.filter((log) => !log.returned_at),
-    [visibleBorrowLogs]
+    () => scopedBorrowLogs.filter((log) => !log.returned_at),
+    [scopedBorrowLogs]
   );
   const returnedBorrows = useMemo(
-    () => visibleBorrowLogs.filter((log) => Boolean(log.returned_at)),
-    [visibleBorrowLogs]
+    () => scopedBorrowLogs.filter((log) => Boolean(log.returned_at)),
+    [scopedBorrowLogs]
   );
   const totalStock = useMemo(
     () =>
@@ -73,11 +83,12 @@ export default function Dashboard({ user, onLogout }) {
   const categoryBreakdown = useMemo(() => {
     const map = new Map();
     components.forEach((item) => {
-      const cat = item.category || 'Uncategorized';
-      const entry = map.get(cat) || { category: cat, qty: 0, count: 0 };
+      const rawCat = (item.category || 'Uncategorized').trim();
+      const key = rawCat.toLowerCase();
+      const entry = map.get(key) || { category: rawCat, qty: 0, count: 0 };
       entry.qty += Number(item.quantity) || 0;
       entry.count += 1;
-      map.set(cat, entry);
+      map.set(key, entry);
     });
     const rows = Array.from(map.values());
     const maxQty = Math.max(...rows.map((r) => r.qty), 1);
@@ -173,8 +184,9 @@ export default function Dashboard({ user, onLogout }) {
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-neutral-400">
-            Overview of electronics inventory and your personal borrow/return
-            activity ({user?.full_name || user?.email || 'User'}).
+            {isAdmin
+              ? `System inventory overview and all student borrow/return activity (${user?.full_name || user?.email || 'Admin'}).`
+              : `Overview of electronics inventory and your personal borrow/return activity (${user?.full_name || user?.email || 'User'}).`}
           </p>
           <button
             type="button"
@@ -207,7 +219,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
                 <div className="text-xs font-bold uppercase text-neutral-400">
-                  Your Active Borrows
+                  {isAdmin ? 'Active Borrows' : 'Your Active Borrows'}
                 </div>
                 <div className="text-3xl font-bold text-emerald-400 my-1">
                   {activeBorrows.length}
@@ -219,7 +231,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
                 <div className="text-xs font-bold uppercase text-neutral-400">
-                  Your Returned Items
+                  {isAdmin ? 'Returned Items' : 'Your Returned Items'}
                 </div>
                 <div className="text-3xl font-bold text-white my-1">
                   {returnedBorrows.length}
@@ -231,13 +243,13 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
                 <div className="text-xs font-bold uppercase text-neutral-400">
-                  Your Borrow Logs
+                  {isAdmin ? 'Total Borrow Logs' : 'Your Borrow Logs'}
                 </div>
                 <div className="text-3xl font-bold text-white my-1">
-                  {visibleBorrowLogs.length}
+                  {scopedBorrowLogs.length}
                 </div>
                 <div className="text-xs text-neutral-400">
-                  Your recorded checkouts
+                  {isAdmin ? 'All recorded checkouts' : 'Your recorded checkouts'}
                 </div>
               </div>
             </div>
@@ -284,18 +296,24 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="lg:col-span-7 bg-[#1c1c1c] p-5 rounded-lg shadow-lg border border-neutral-800">
                 <h2 className="text-base font-bold text-white">
-                  Your Recent Borrow Activity
+                  {isAdmin
+                    ? 'Recent Student Borrow Activity'
+                    : 'Your Recent Borrow Activity'}
                 </h2>
                 <p className="text-xs text-neutral-400 mb-4">
-                  Your latest checkouts and returns
+                  {isAdmin
+                    ? 'All checkouts and returns across students'
+                    : 'Your latest checkouts and returns'}
                 </p>
 
-                {visibleBorrowLogs.length === 0 ? (
+                {recentActivityLogs.length === 0 ? (
                   <p className="text-xs text-neutral-500">
-                    No borrow logs recorded for your account yet.
+                    {isAdmin
+                      ? 'No borrow logs recorded yet.'
+                      : 'No borrow logs recorded for your account yet.'}
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-64">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="border-b border-neutral-800 text-[11px] uppercase text-neutral-400">
@@ -307,7 +325,7 @@ export default function Dashboard({ user, onLogout }) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-800/80">
-                        {visibleBorrowLogs.slice(0, 6).map((log) => (
+                        {recentActivityLogs.map((log) => (
                           <tr
                             key={log.id}
                             className="hover:bg-neutral-800/30 transition"
@@ -321,6 +339,9 @@ export default function Dashboard({ user, onLogout }) {
                               </div>
                               <div className="text-neutral-400">
                                 {log.components?.name || log.component_id}
+                                {log.components?.category
+                                  ? ` • ${log.components.category}`
+                                  : ''}
                               </div>
                             </td>
                             <td className="py-2.5 px-2">
@@ -357,13 +378,17 @@ export default function Dashboard({ user, onLogout }) {
           studentSection === 'borrow-history') && (
           <div className="bg-[#1c1c1c] p-6 rounded-lg shadow-lg border border-neutral-800">
             <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-              <History className="text-emerald-400" size={20} /> Your Borrow
-              &amp; Return History
+              <History className="text-emerald-400" size={20} />{' '}
+              {isAdmin
+                ? 'All Borrow & Return History'
+                : 'Your Borrow & Return History'}
             </h2>
 
-            {visibleBorrowLogs.length === 0 ? (
+            {scopedBorrowLogs.length === 0 ? (
               <p className="text-sm text-neutral-400">
-                No borrow records found for your account yet.
+                {isAdmin
+                  ? 'No borrow records found yet.'
+                  : 'No borrow records found for your account yet.'}
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -372,13 +397,14 @@ export default function Dashboard({ user, onLogout }) {
                     <tr className="border-b border-neutral-800 bg-[#141414] text-neutral-300 text-xs uppercase">
                       <th className="p-2.5">Borrower</th>
                       <th className="p-2.5">Component</th>
+                      <th className="p-2.5">Category</th>
                       <th className="p-2.5">Qty</th>
                       <th className="p-2.5">Status</th>
                       <th className="p-2.5">Returned At</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-800/80">
-                    {visibleBorrowLogs.map((log) => (
+                    {scopedBorrowLogs.map((log) => (
                       <tr
                         key={log.id}
                         className="hover:bg-neutral-800/30 transition"
@@ -388,6 +414,9 @@ export default function Dashboard({ user, onLogout }) {
                         </td>
                         <td className="p-2.5 text-neutral-300">
                           {log.components?.name || log.component_id}
+                        </td>
+                        <td className="p-2.5 text-neutral-400">
+                          {log.components?.category || 'Uncategorized'}
                         </td>
                         <td className="p-2.5 text-neutral-100 font-medium">
                           {log.quantity_borrowed}
