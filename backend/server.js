@@ -68,6 +68,58 @@ app.post('/api/components', async (req, res) => {
   res.status(201).json(data[0]);
 });
 
+// Add stock to a component (Admin Controls)
+app.patch('/api/components/:id/stock', async (req, res) => {
+  const { id } = req.params;
+  const amountToAdd = Number(req.body?.amount);
+
+  if (Number.isNaN(amountToAdd) || amountToAdd === 0) {
+    return res.status(400).json({ error: 'A non-zero numeric stock adjustment is required.' });
+  }
+
+  const { data: comp, error: fetchError } = await supabase
+    .from('components')
+    .select('id, quantity, status')
+    .eq('id', id)
+    .single();
+
+  if (fetchError || !comp) {
+    return res.status(404).json({ error: 'Component not found.' });
+  }
+
+  const newQuantity = Math.max(0, (Number(comp.quantity) || 0) + amountToAdd);
+  const nextStatus = newQuantity > 0 ? 'Available' : 'Borrowed Out';
+
+  const { data: updated, error: updateError } = await supabase
+    .from('components')
+    .update({ quantity: newQuantity, status: nextStatus })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (updateError) {
+    return res.status(400).json({ error: updateError.message });
+  }
+
+  res.json(updated);
+});
+
+// Delete component (Admin Controls)
+app.delete('/api/components/:id', async (req, res) => {
+  const { id } = req.params;
+
+  const { error } = await supabase
+    .from('components')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  res.json({ message: 'Component deleted successfully.' });
+});
+
 // Borrow Item (Check-out)
 app.post('/api/borrow', async (req, res) => {
   const { component_id, borrower_name, quantity_borrowed } = req.body;
@@ -214,41 +266,6 @@ app.patch('/api/return/:logId', async (req, res) => {
   });
 });
 
-// Export to CSV (borrow logs)
-app.get('/api/logs/export', async (req, res) => {
-  const { data: logs, error } = await supabase
-    .from('borrow_logs')
-    .select(`
-      id,
-      borrower_name,
-      quantity_borrowed,
-      status,
-      return_quality,
-      borrowed_at,
-      returned_at,
-      components ( name, category )
-    `)
-    .order('borrowed_at', { ascending: false });
-
-  if (error) return res.status(400).json({ error: error.message });
-
-  let csv =
-    'Log ID,Component Name,Category,Borrower Name,Quantity,Status,Return Quality,Borrowed At,Returned At\n';
-
-  logs.forEach((log) => {
-    const compName = (log.components?.name || 'Unknown').replace(/"/g, '""');
-    const compCat = (log.components?.category || 'Unknown').replace(/"/g, '""');
-    const borrower = (log.borrower_name || '').replace(/"/g, '""');
-    const quality = log.return_quality || 'N/A';
-
-    csv += `"${log.id}","${compName}","${compCat}","${borrower}",${log.quantity_borrowed},"${log.status}","${quality}","${log.borrowed_at}","${log.returned_at || 'Not Returned'}"\n`;
-  });
-
-  res.header('Content-Type', 'text/csv');
-  res.attachment('componenthub-activity-logs.csv');
-  res.send(csv);
-});
-
 // Get borrow logs with component info
 app.get('/api/borrow-logs', async (req, res) => {
   const { data, error } = await supabase
@@ -277,3 +294,38 @@ app.get('/api/borrow-logs', async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// Export to CSV (borrow logs)
+app.get('/api/logs/export', async (req, res) => {
+  const { data: logs, error } = await supabase
+    .from('borrow_logs')
+    .select(`
+      id,
+      borrower_name,
+      quantity_borrowed,
+      status,
+      return_quality,
+      borrowed_at,
+      returned_at,
+      components ( name, category )
+    `)
+    .order('borrowed_at', { ascending: false });
+
+  if (error) return res.status(400).json({ error: error.message });
+
+  let csv =
+    'Log ID, Component Name, Category, Borrower Name, Quantity, Status, Return Quality, Borrowed At, Returned At\n';
+
+  logs.forEach((log) => {
+    const compName = (log.components?.name || 'Unknown').replace(/"/g, '""');
+    const compCat = (log.components?.category || 'Unknown').replace(/"/g, '""');
+    const borrower = (log.borrower_name || '').replace(/"/g, '""');
+    const quality = log.return_quality || 'N/A';
+
+    csv += `"${log.id}", "${compName}", "${compCat}", "${borrower}", ${log.quantity_borrowed}, "${log.status}", "${quality}", "${log.borrowed_at}", "${log.returned_at || 'Not Returned'}"\n`;
+  });
+
+  res.header('Content-Type', 'text/csv');
+  res.attachment('componenthub-activity-logs.csv');
+  res.send(csv);
+});

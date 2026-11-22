@@ -4,24 +4,17 @@ import { getComponents, getBorrowLogs } from '../services/api';
 import Navbar from '../components/Navbar';
 import ReturnItem from './ReturnItem';
 import BorrowItem from './BorrowItem';
+import AdminControls from './AdminControls';
 
 export default function Dashboard({ user, onLogout }) {
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
-  const [activeTab, setActiveTab] = useState('student');
   const [studentSection, setStudentSection] = useState('overview');
   const [currentPage, setCurrentPage] = useState('dashboard');
 
   const [components, setComponents] = useState([]);
   const [borrowLogs, setBorrowLogs] = useState([]);
   const [loading, setLoading] = useState(false);
-
-  // Force non-admins back to student view if ever set to admin
-  useEffect(() => {
-    if (!isAdmin && activeTab === 'admin') {
-      setActiveTab('student');
-    }
-  }, [isAdmin, activeTab]);
 
   const fetchDashboardData = async () => {
     try {
@@ -43,14 +36,7 @@ export default function Dashboard({ user, onLogout }) {
     fetchDashboardData();
   }, []);
 
-  const showingAdminView = isAdmin && activeTab === 'admin';
-
-  // Scope dashboard borrow logs to the logged-in account unless viewing as Admin
   const visibleBorrowLogs = useMemo(() => {
-    if (showingAdminView) {
-      return borrowLogs;
-    }
-
     const allowedBorrowers = [
       user?.borrower_identity,
       user?.borrower_key,
@@ -68,9 +54,8 @@ export default function Dashboard({ user, onLogout }) {
       const logBorrower = (log.borrower_name || '').trim().toLowerCase();
       return allowedBorrowers.includes(logBorrower);
     });
-  }, [borrowLogs, showingAdminView, user]);
+  }, [borrowLogs, user]);
 
-  // Derive active & returned counts from visibleBorrowLogs
   const activeBorrows = useMemo(
     () => visibleBorrowLogs.filter((log) => !log.returned_at),
     [visibleBorrowLogs]
@@ -85,7 +70,6 @@ export default function Dashboard({ user, onLogout }) {
     [components]
   );
 
-  // Stock breakdown by category for progress bars
   const categoryBreakdown = useMemo(() => {
     const map = new Map();
     components.forEach((item) => {
@@ -178,8 +162,6 @@ export default function Dashboard({ user, onLogout }) {
     <Navbar
       user={user}
       isAdmin={isAdmin}
-      showingAdminView={showingAdminView}
-      onSelectTab={setActiveTab}
       studentSection={studentSection}
       onSelectStudentSection={setStudentSection}
       activeBorrowsCount={activeBorrows.length}
@@ -189,14 +171,10 @@ export default function Dashboard({ user, onLogout }) {
       onNavigate={handleNavigate}
     >
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
-        {/* Sub-Header & Refresh Button */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-neutral-400">
-            {showingAdminView
-              ? 'Overview of electronics inventory, active borrows, and returns.'
-              : `Overview of electronics inventory and your personal borrow/return activity (${
-                  user?.full_name || user?.email || 'Student'
-                }).`}
+            Overview of electronics inventory and your personal borrow/return
+            activity ({user?.full_name || user?.email || 'User'}).
           </p>
           <button
             type="button"
@@ -212,7 +190,6 @@ export default function Dashboard({ user, onLogout }) {
           </button>
         </div>
 
-        {/* Widgets for Stocks and Borrows */}
         {studentSection === 'overview' && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -230,7 +207,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
                 <div className="text-xs font-bold uppercase text-neutral-400">
-                  {showingAdminView ? 'Active Borrows' : 'Your Active Borrows'}
+                  Your Active Borrows
                 </div>
                 <div className="text-3xl font-bold text-emerald-400 my-1">
                   {activeBorrows.length}
@@ -242,7 +219,7 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
                 <div className="text-xs font-bold uppercase text-neutral-400">
-                  {showingAdminView ? 'Returned Items' : 'Your Returned Items'}
+                  Your Returned Items
                 </div>
                 <div className="text-3xl font-bold text-white my-1">
                   {returnedBorrows.length}
@@ -254,20 +231,17 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
                 <div className="text-xs font-bold uppercase text-neutral-400">
-                  {showingAdminView ? 'Total Borrow Logs' : 'Your Borrow Logs'}
+                  Your Borrow Logs
                 </div>
                 <div className="text-3xl font-bold text-white my-1">
                   {visibleBorrowLogs.length}
                 </div>
                 <div className="text-xs text-neutral-400">
-                  {showingAdminView
-                    ? 'All recorded checkouts'
-                    : 'Your recorded checkouts'}
+                  Your recorded checkouts
                 </div>
               </div>
             </div>
 
-            {/* Category & Recent Borrow Activity */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
               <div className="lg:col-span-5 bg-[#1c1c1c] p-5 rounded-lg shadow-lg border border-neutral-800">
                 <h2 className="text-base font-bold text-white">
@@ -310,17 +284,15 @@ export default function Dashboard({ user, onLogout }) {
 
               <div className="lg:col-span-7 bg-[#1c1c1c] p-5 rounded-lg shadow-lg border border-neutral-800">
                 <h2 className="text-base font-bold text-white">
-                  Recent Borrow Activity
+                  Your Recent Borrow Activity
                 </h2>
                 <p className="text-xs text-neutral-400 mb-4">
-                  Latest checkouts and returns
+                  Your latest checkouts and returns
                 </p>
 
                 {visibleBorrowLogs.length === 0 ? (
                   <p className="text-xs text-neutral-500">
-                    {showingAdminView
-                      ? 'No borrow logs recorded yet.'
-                      : 'No borrow logs recorded for your account yet.'}
+                    No borrow logs recorded for your account yet.
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -328,7 +300,7 @@ export default function Dashboard({ user, onLogout }) {
                       <thead>
                         <tr className="border-b border-neutral-800 text-[11px] uppercase text-neutral-400">
                           <th className="py-2 pr-2">Log</th>
-                          <th className="py-2 px-2">Borrower & Item</th>
+                          <th className="py-2 px-2">Borrower &amp; Item</th>
                           <th className="py-2 px-2">Status</th>
                           <th className="py-2 px-2 text-right">Qty</th>
                           <th className="py-2 pl-2">Returned At</th>
@@ -381,20 +353,17 @@ export default function Dashboard({ user, onLogout }) {
           </>
         )}
 
-        {/* Borrow & Return History Table */}
         {(studentSection === 'overview' ||
           studentSection === 'borrow-history') && (
           <div className="bg-[#1c1c1c] p-6 rounded-lg shadow-lg border border-neutral-800">
             <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-              <History className="text-emerald-400" size={20} /> Borrow & Return
-              History
+              <History className="text-emerald-400" size={20} /> Your Borrow
+              &amp; Return History
             </h2>
 
             {visibleBorrowLogs.length === 0 ? (
               <p className="text-sm text-neutral-400">
-                {showingAdminView
-                  ? 'No borrow records found yet.'
-                  : 'No borrow records found for your account yet.'}
+                No borrow records found for your account yet.
               </p>
             ) : (
               <div className="overflow-x-auto">

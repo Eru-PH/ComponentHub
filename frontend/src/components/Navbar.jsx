@@ -24,21 +24,25 @@ export default function Navbar({
         : 'text-neutral-300 hover:bg-neutral-800/60 hover:text-white font-normal'
     }`;
 
+  const isAdminActive =
+    activePage === 'admin' || activeSection === 'admin-controls';
+
   const isOverviewActive =
+    !isAdminActive &&
     activePage === 'dashboard' &&
     (!activeSection || activeSection === 'overview');
 
   const isBorrowActive =
-    activePage === 'borrowitem' ||
-    (activePage === 'dashboard' && activeSection === 'borrow-catalog');
+    !isAdminActive &&
+    (activePage === 'borrowitem' ||
+      (activePage === 'dashboard' && activeSection === 'borrow-catalog'));
 
-  const isReturnActive = activePage === 'return';
+  const isReturnActive = !isAdminActive && activePage === 'return';
 
   const isHistoryActive =
-    activePage === 'dashboard' && activeSection === 'borrow-history';
-
-  const isAdminActive =
-    activePage === 'dashboard' && activeSection === 'admin-controls';
+    !isAdminActive &&
+    activePage === 'dashboard' &&
+    activeSection === 'borrow-history';
 
   return (
     <div className="flex min-h-screen bg-[#121212] text-neutral-100 font-sans">
@@ -93,7 +97,7 @@ export default function Navbar({
             {isAdmin && (
               <a
                 href="#admin-controls"
-                onClick={(e) => handleNavClick(e, 'dashboard', 'admin-controls')}
+                onClick={(e) => handleNavClick(e, 'admin', 'admin-controls')}
                 className={getItemClass(isAdminActive)}
               >
                 Admin Controls
@@ -114,15 +118,17 @@ export default function Navbar({
       <div className="flex-1 flex flex-col min-w-0 bg-[#121212]">
         <header className="bg-[#181818] border-b border-neutral-800 px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-lg font-bold text-white">
-            {isBorrowActive
-              ? 'Borrow & Catalog'
-              : isReturnActive
-                ? 'Return Items'
-                : isHistoryActive
-                  ? 'Borrow History'
-                  : isAdminActive
-                    ? 'Admin Controls'
-                    : 'Dashboard'}
+            {isAdminActive
+              ? 'Admin Controls & Logs'
+              : isBorrowActive
+                ? 'Borrow & Catalog'
+                : isReturnActive
+                  ? 'Return Items'
+                  : isHistoryActive
+                    ? 'Borrow History'
+                    : isAdmin
+                      ? 'Admin Dashboard'
+                      : 'Dashboard'}
           </h1>
 
           <div className="flex items-center gap-3 text-sm">
