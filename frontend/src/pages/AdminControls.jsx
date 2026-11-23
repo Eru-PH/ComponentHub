@@ -535,15 +535,7 @@ export default function AdminControls({
                             {log.quantity_borrowed}
                           </td>
                           <td className="p-3">
-                            {log.returned_at ? (
-                              <span className="px-2 py-0.5 text-xs rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60 font-semibold">
-                                Returned
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 text-xs rounded bg-neutral-800 text-neutral-200 border border-neutral-700 font-semibold">
-                                Borrowed
-                              </span>
-                            )}
+                            <BorrowStatus returnedAt={log.returned_at} size="sm" />
                           </td>
                           <td className="p-3 text-xs text-neutral-300">
                             {log.returned_at ? log.return_quality || 'Good' : '—'}

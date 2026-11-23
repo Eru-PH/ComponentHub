@@ -7,6 +7,7 @@ import PageHeader from '../components/PageHeader';
 import ReturnItem from './ReturnItem';
 import BorrowItem from './BorrowItem';
 import AdminControls from './AdminControls';
+import BorrowStatus from '../components/BorrowStatus';
 
 export default function Dashboard({ user, onLogout }) {
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
@@ -333,15 +334,7 @@ export default function Dashboard({ user, onLogout }) {
                               </div>
                             </td>
                             <td className="py-2.5 px-2">
-                              {log.returned_at ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-950 text-emerald-300 border border-emerald-700/60">
-                                  Returned
-                                </span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-neutral-800 text-neutral-200 border border-neutral-700">
-                                  Borrowed
-                                </span>
-                              )}
+                              <BorrowStatus returnedAt={log.returned_at} size="xs" />
                             </td>
                             <td className="py-2.5 px-2 text-right font-semibold text-neutral-100">
                               {log.quantity_borrowed}
@@ -410,15 +403,7 @@ export default function Dashboard({ user, onLogout }) {
                           {log.quantity_borrowed}
                         </td>
                         <td className="p-2.5">
-                          {log.returned_at ? (
-                            <span className="px-2 py-0.5 text-xs rounded bg-emerald-950 text-emerald-300 border border-emerald-700/60 font-semibold">
-                              Returned
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 text-xs rounded bg-neutral-800 text-neutral-200 border border-neutral-700 font-semibold">
-                              Borrowed
-                            </span>
-                          )}
+                          <BorrowStatus returnedAt={log.returned_at} size="sm" />
                         </td>
                         <td className="p-2.5 text-neutral-400">
                           {log.returned_at
