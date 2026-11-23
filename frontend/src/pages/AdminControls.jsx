@@ -6,6 +6,8 @@ import { getComponents, getBorrowLogs, createComponent, deleteComponent, addComp
 import Navbar from '../components/Navbar';
 import TopWidgets from '../components/TopWidgets';
 import PageHeader from '../components/PageHeader';
+import BorrowStatus from '../components/BorrowStatus';
+import BorrowHistoryTable from '../components/BorrowHistoryTable';
 
 const PRESET_CATEGORIES = [
   'Microcontrollers',
@@ -494,63 +496,18 @@ export default function AdminControls({
                 </div>
               </div>
 
-              {loading ? (
-                <p className="text-sm text-neutral-400">
-                  Loading borrow logs...
-                </p>
-              ) : filteredLogs.length === 0 ? (
-                <p className="text-sm text-neutral-400">
-                  No borrow logs match your current filter.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
-                    <thead>
-                      <tr className="border-b border-neutral-800 bg-[#141414] text-neutral-300 text-xs uppercase">
-                        <th className="p-3">Log ID</th>
-                        <th className="p-3">Borrower</th>
-                        <th className="p-3">Component</th>
-                        <th className="p-3">Qty</th>
-                        <th className="p-3">Status</th>
-                        <th className="p-3">Return Quality</th>
-                        <th className="p-3">Returned At</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-800/80">
-                      {filteredLogs.map((log) => (
-                        <tr
-                          key={log.id}
-                          className="hover:bg-neutral-800/30 transition"
-                        >
-                          <td className="p-3 font-mono text-xs text-neutral-500">
-                            #{String(log.id).slice(0, 8)}
-                          </td>
-                          <td className="p-3 font-medium text-neutral-100">
-                            {log.borrower_name}
-                          </td>
-                          <td className="p-3 text-neutral-300">
-                            {log.components?.name || log.component_id}
-                          </td>
-                          <td className="p-3 font-semibold text-neutral-100">
-                            {log.quantity_borrowed}
-                          </td>
-                          <td className="p-3">
-                            <BorrowStatus returnedAt={log.returned_at} size="sm" />
-                          </td>
-                          <td className="p-3 text-xs text-neutral-300">
-                            {log.returned_at ? log.return_quality || 'Good' : '—'}
-                          </td>
-                          <td className="p-3 text-xs text-neutral-400">
-                            {log.returned_at
-                              ? new Date(log.returned_at).toLocaleString()
-                              : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <BorrowHistoryTable
+                logs={filteredLogs}
+                loading={loading}
+                loadingMessage="Loading borrow logs..."
+                emptyMessage="No borrow logs match your current filter."
+                showLogId={true}
+                showCategory={false}
+                showReturnQuality={true}
+                renderStatus={(log) => (
+                  <BorrowStatus returnedAt={log.returned_at} size="sm" />
+                )}
+              />*
             </div>
           </>
         )}

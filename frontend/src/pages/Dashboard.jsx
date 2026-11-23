@@ -8,6 +8,7 @@ import ReturnItem from './ReturnItem';
 import BorrowItem from './BorrowItem';
 import AdminControls from './AdminControls';
 import BorrowStatus from '../components/BorrowStatus';
+import BorrowHistoryTable from '../components/BorrowHistoryTable';
 
 export default function Dashboard({ user, onLogout }) {
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
@@ -365,57 +366,20 @@ export default function Dashboard({ user, onLogout }) {
                 : 'Your Borrow & Return History'}
             </h2>
 
-            {scopedBorrowLogs.length === 0 ? (
-              <p className="text-sm text-neutral-400">
-                {isAdmin
+            <BorrowHistoryTable
+              logs={scopedBorrowLogs}
+              loading={loading}
+              loadingMessage="Loading borrow history..."
+              emptyMessage={
+                isAdmin
                   ? 'No borrow records found yet.'
-                  : 'No borrow records found for your account yet.'}
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
-                  <thead>
-                    <tr className="border-b border-neutral-800 bg-[#141414] text-neutral-300 text-xs uppercase">
-                      <th className="p-2.5">Borrower</th>
-                      <th className="p-2.5">Component</th>
-                      <th className="p-2.5">Category</th>
-                      <th className="p-2.5">Qty</th>
-                      <th className="p-2.5">Status</th>
-                      <th className="p-2.5">Returned At</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-800/80">
-                    {scopedBorrowLogs.map((log) => (
-                      <tr
-                        key={log.id}
-                        className="hover:bg-neutral-800/30 transition"
-                      >
-                        <td className="p-2.5 text-neutral-100">
-                          {log.borrower_name}
-                        </td>
-                        <td className="p-2.5 text-neutral-300">
-                          {log.components?.name || log.component_id}
-                        </td>
-                        <td className="p-2.5 text-neutral-400">
-                          {log.components?.category || 'Uncategorized'}
-                        </td>
-                        <td className="p-2.5 text-neutral-100 font-medium">
-                          {log.quantity_borrowed}
-                        </td>
-                        <td className="p-2.5">
-                          <BorrowStatus returnedAt={log.returned_at} size="sm" />
-                        </td>
-                        <td className="p-2.5 text-neutral-400">
-                          {log.returned_at
-                            ? new Date(log.returned_at).toLocaleString()
-                            : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  : 'No borrow records found for your account yet.'
+              }
+              showCategory={true}
+              renderStatus={(log) => (
+              <BorrowStatus returnedAt={log.returned_at} size="sm" />
+              )}
+            />
           </div>
         )}
       </div>
