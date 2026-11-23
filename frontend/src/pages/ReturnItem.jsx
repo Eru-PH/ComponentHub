@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { RotateCcw, ArrowLeft, RefreshCw, Search, Filter } from 'lucide-react';
+import { RotateCcw, Search, Filter } from 'lucide-react';
 import { getBorrowLogs, returnComponent } from '../services/api';
 import Navbar from '../components/Navbar';
+import TopWidgets from '../components/TopWidgets';
+import PageHeader from '../components/PageHeader';
 
 const RETURN_QUALITIES = ['Good', 'Fair', 'Damaged'];
 
@@ -35,7 +37,7 @@ export default function ReturnItem({
     fetchLogs();
   }, []);
 
-  // ✅ EDITED: Strictly show only the logged-in student's unreturned logs (no fallback to all rows)
+  // Strictly show only the logged-in student's unreturned logs (all active logs for admins)
   const unreturnedLogs = useMemo(() => {
     const active = borrowLogs.filter((log) => !log.returned_at);
 
@@ -122,6 +124,29 @@ export default function ReturnItem({
     });
   }, [unreturnedLogs, selectedComponentFilter, searchTerm]);
 
+  const returnWidgets = useMemo(
+    () => [
+      {
+        id: 'awaiting-return',
+        label: isAdmin ? 'Items Awaiting Return' : 'Your Borrowed Items',
+        value: activeBorrows.length,
+        subtext:
+          selectedComponentFilter === 'ALL'
+            ? `${unreturnedLogs.length} total active record${
+                unreturnedLogs.length === 1 ? '' : 's'
+              }`
+            : 'Filtered by selected component',
+        valueClassName: 'text-emerald-400',
+      },
+    ],
+    [
+      isAdmin,
+      activeBorrows.length,
+      selectedComponentFilter,
+      unreturnedLogs.length,
+    ]
+  );
+
   const handleQualityChange = (logId, value) => {
     setQualityByLogId((prev) => ({
       ...prev,
@@ -165,65 +190,25 @@ export default function ReturnItem({
       }}
     >
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
-        {/* Top Page Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <RotateCcw className="text-emerald-400" size={20} /> Return
-              Borrowed Equipment
-            </h2>
-            {/* ✅ EDITED: Role-aware helper text */}
-            <p className="text-xs text-neutral-400">
-              {isAdmin
-                ? 'Filter by borrowed component, select return condition, and check in hardware.'
-                : `Showing active borrowed items for ${
-                    user?.full_name || user?.email || 'your account'
-                  }.`}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={fetchLogs}
-              disabled={loading}
-              className="px-3 py-1.5 rounded bg-[#1c1c1c] border border-neutral-800 hover:bg-neutral-800 hover:border-emerald-500/50 text-xs font-medium text-neutral-200 flex items-center gap-1.5 transition"
-            >
-              <RefreshCw
-                size={13}
-                className={`${loading ? 'animate-spin' : ''} text-emerald-400`}
-              />
-              {loading ? 'Refreshing...' : 'Refresh List'}
-            </button>
-
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition"
-            >
-              <ArrowLeft size={14} /> Back to Dashboard
-            </button>
-          </div>
-        </div>
+        <PageHeader
+          icon={RotateCcw}
+          title="Return Borrowed Equipment"
+          subtitle={
+            isAdmin
+              ? 'Filter by borrowed component, select return condition, and check in hardware.'
+              : `Showing active borrowed items for ${
+                  user?.full_name || user?.email || 'your account'
+                }.`
+          }
+          onRefresh={fetchLogs}
+          refreshLabel="Refresh List"
+          loading={loading}
+          onBack={onBackToDashboard}
+        />
 
         {/* Summary & Filter Bar */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-[#1c1c1c] p-4 rounded-lg border border-neutral-800 shadow-lg">
-            {/* ✅ EDITED: Role-aware metric title */}
-            <div className="text-[11px] font-bold uppercase text-neutral-400">
-              {isAdmin ? 'Items Awaiting Return' : 'Your Borrowed Items'}
-            </div>
-            <div className="text-3xl font-bold text-emerald-400 mt-1">
-              {activeBorrows.length}
-            </div>
-            <div className="text-xs text-neutral-400 mt-1">
-              {selectedComponentFilter === 'ALL'
-                ? `${unreturnedLogs.length} total active record${
-                    unreturnedLogs.length === 1 ? '' : 's'
-                  }`
-                : 'Filtered by selected component'}
-            </div>
-          </div>
+          <TopWidgets items={returnWidgets} columns={1} />
 
           <div className="bg-[#1c1c1c] p-4 rounded-lg border border-neutral-800 shadow-lg flex flex-col justify-center">
             <label
@@ -277,7 +262,6 @@ export default function ReturnItem({
 
         {/* Interactive Return Table */}
         <div className="bg-[#1c1c1c] p-6 rounded-lg border border-neutral-800 shadow-lg">
-          {/* ✅ EDITED: Role-aware table heading */}
           <h3 className="text-base font-bold text-white mb-4">
             {isAdmin ? 'Active Borrowed Items' : 'Your Active Borrowed Items'}
           </h3>
@@ -286,7 +270,6 @@ export default function ReturnItem({
             <p className="text-sm text-neutral-400">Loading active borrows...</p>
           ) : activeBorrows.length === 0 ? (
             <p className="text-sm text-neutral-400">
-              {/* ✅ EDITED: Role-aware empty state message */}
               {isAdmin
                 ? 'No active borrowed items match your current view.'
                 : 'You have no active borrowed items to return.'}

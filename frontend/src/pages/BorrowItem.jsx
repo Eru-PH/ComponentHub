@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Package, ArrowLeft, RefreshCw, Search } from 'lucide-react';
+import { Package, Search } from 'lucide-react';
 import { getComponents, borrowComponent } from '../services/api';
 import Navbar from '../components/Navbar';
+import PageHeader from '../components/PageHeader';
 
 export default function BorrowItem({
   user,
@@ -15,7 +16,6 @@ export default function BorrowItem({
   const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // ✅ EDITED: Use borrower_identity / full_name / email from login if available
   const accountBorrowerName = user?.borrower_identity || user?.full_name || user?.email || '';
 
   const [borrowData, setBorrowData] = useState({
@@ -24,6 +24,7 @@ export default function BorrowItem({
     quantity_borrowed: 1,
   });
 
+  // Load inventory
   const fetchComponents = async () => {
     try {
       setLoading(true);
@@ -40,7 +41,7 @@ export default function BorrowItem({
     fetchComponents();
   }, []);
 
-  // ✅ EDITED: Lock borrower_name to the logged-in student's account on login/update
+  // Sync borrower identity
   useEffect(() => {
     if (!user) return;
     const resolvedName = user?.borrower_identity || user?.full_name || user?.email || '';
@@ -52,6 +53,7 @@ export default function BorrowItem({
     }));
   }, [user, isAdmin]);
 
+  // In-stock items
   const availableComponents = useMemo(
     () =>
       components.filter(
@@ -66,6 +68,7 @@ export default function BorrowItem({
     [components, borrowData.component_id]
   );
 
+  // Search filter
   const filteredComponents = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     return components.filter((item) => {
@@ -81,6 +84,7 @@ export default function BorrowItem({
     });
   }, [components, searchTerm]);
 
+  // Checkout submit
   const handleBorrowSubmit = async (e) => {
     e.preventDefault();
     if (!borrowData.component_id) {
@@ -88,7 +92,6 @@ export default function BorrowItem({
       return;
     }
 
-    // ✅ EDITED: Always submit the logged-in account name for non-admin users
     const finalBorrowerName = !isAdmin
       ? accountBorrowerName
       : borrowData.borrower_name || accountBorrowerName;
@@ -103,7 +106,7 @@ export default function BorrowItem({
       alert('Item successfully checked out and inventory updated!');
       setBorrowData({
         component_id: '',
-        borrower_name: finalBorrowerName, // ✅ EDITED: Keep account name after submit
+        borrower_name: finalBorrowerName,
         quantity_borrowed: 1,
       });
       await fetchComponents();
@@ -138,43 +141,17 @@ export default function BorrowItem({
       }}
     >
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
-        {/* Top Page Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Package className="text-emerald-400" size={20} />
-              Equipment Catalog
-            </h2>
-            <p className="text-xs text-neutral-400">
-              Browse available hardware components and submit a checkout request.
-            </p>
-          </div>
+        <PageHeader
+          icon={Package}
+          title="Equipment Catalog"
+          subtitle="Browse available hardware components and submit a checkout request."
+          onRefresh={fetchComponents}
+          refreshLabel="Refresh Catalog"
+          loading={loading}
+          onBack={onBackToDashboard}
+        />
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={fetchComponents}
-              disabled={loading}
-              className="px-3 py-1.5 rounded bg-[#1c1c1c] border border-neutral-800 hover:bg-neutral-800 hover:border-emerald-500/50 text-xs font-medium text-neutral-200 flex items-center gap-1.5 transition"
-            >
-              <RefreshCw
-                size={13}
-                className={`${loading ? 'animate-spin' : ''} text-emerald-400`}
-              />
-              {loading ? 'Refreshing...' : 'Refresh Catalog'}
-            </button>
-
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition"
-            >
-              <ArrowLeft size={14} /> Back to Dashboard
-            </button>
-          </div>
-        </div>
-
-        {/* Borrow Request Form */}
+        {/* Checkout Form */}
         <div className="bg-[#1c1c1c] p-6 rounded-lg border border-neutral-800 shadow-lg">
           <h3 className="text-base font-bold text-white mb-4">
             Request a Component Checkout
@@ -244,7 +221,6 @@ export default function BorrowItem({
               <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
                 Borrower Full Name
               </label>
-              {/* ✅ EDITED: Read-only for non-admin accounts so borrows always tie to the logged-in user */}
               <input
                 type="text"
                 value={borrowData.borrower_name}
@@ -275,7 +251,7 @@ export default function BorrowItem({
           </form>
         </div>
 
-        {/* Search Box & Equipment Catalog */}
+        {/* Catalog Grid */}
         <div className="bg-[#1c1c1c] p-6 rounded-lg border border-neutral-800 shadow-lg space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>

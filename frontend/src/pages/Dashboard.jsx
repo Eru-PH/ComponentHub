@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { History, RefreshCw } from 'lucide-react';
+import { History, LayoutDashboard } from 'lucide-react';
 import { getComponents, getBorrowLogs } from '../services/api';
 import Navbar from '../components/Navbar';
+import TopWidgets from '../components/TopWidgets';
+import PageHeader from '../components/PageHeader';
 import ReturnItem from './ReturnItem';
 import BorrowItem from './BorrowItem';
 import AdminControls from './AdminControls';
@@ -78,6 +80,47 @@ export default function Dashboard({ user, onLogout }) {
     () =>
       components.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
     [components]
+  );
+
+  const dashboardWidgets = useMemo(
+    () => [
+      {
+        id: 'total-stock',
+        label: 'Total Stock Units',
+        value: totalStock,
+        subtext: `${components.length} component types`,
+        valueClassName: 'text-white',
+      },
+      {
+        id: 'active-borrows',
+        label: isAdmin ? 'Active Borrows' : 'Your Active Borrows',
+        value: activeBorrows.length,
+        subtext: 'Currently checked out',
+        valueClassName: 'text-emerald-400',
+      },
+      {
+        id: 'returned-items',
+        label: isAdmin ? 'Returned Items' : 'Your Returned Items',
+        value: returnedBorrows.length,
+        subtext: 'Completed returns',
+        valueClassName: 'text-white',
+      },
+      {
+        id: 'borrow-logs',
+        label: isAdmin ? 'Total Borrow Logs' : 'Your Borrow Logs',
+        value: scopedBorrowLogs.length,
+        subtext: isAdmin ? 'All recorded checkouts' : 'Your recorded checkouts',
+        valueClassName: 'text-white',
+      },
+    ],
+    [
+      totalStock,
+      components.length,
+      isAdmin,
+      activeBorrows.length,
+      returnedBorrows.length,
+      scopedBorrowLogs.length,
+    ]
   );
 
   const categoryBreakdown = useMemo(() => {
@@ -182,77 +225,22 @@ export default function Dashboard({ user, onLogout }) {
       onNavigate={handleNavigate}
     >
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-neutral-400">
-            {isAdmin
+        <PageHeader
+          icon={LayoutDashboard}
+          title={isAdmin ? 'Admin Dashboard' : 'Dashboard Overview'}
+          subtitle={
+            isAdmin
               ? `System inventory overview and all student borrow/return activity (${user?.full_name || user?.email || 'Admin'}).`
-              : `Overview of electronics inventory and your personal borrow/return activity (${user?.full_name || user?.email || 'User'}).`}
-          </p>
-          <button
-            type="button"
-            onClick={fetchDashboardData}
-            disabled={loading}
-            className="px-3 py-1.5 rounded bg-[#1c1c1c] border border-neutral-800 hover:bg-neutral-800 hover:border-emerald-500/50 text-xs font-medium text-neutral-200 flex items-center gap-1.5 transition"
-          >
-            <RefreshCw
-              size={13}
-              className={`${loading ? 'animate-spin' : ''} text-emerald-400`}
-            />
-            {loading ? 'Refreshing...' : 'Refresh Data'}
-          </button>
-        </div>
+              : `Overview of electronics inventory and your personal borrow/return activity (${user?.full_name || user?.email || 'User'}).`
+          }
+          onRefresh={fetchDashboardData}
+          refreshLabel="Refresh Data"
+          loading={loading}
+        />
 
         {studentSection === 'overview' && (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
-                <div className="text-xs font-bold uppercase text-neutral-400">
-                  Total Stock Units
-                </div>
-                <div className="text-3xl font-bold text-white my-1">
-                  {totalStock}
-                </div>
-                <div className="text-xs text-neutral-400">
-                  {components.length} component types
-                </div>
-              </div>
-
-              <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
-                <div className="text-xs font-bold uppercase text-neutral-400">
-                  {isAdmin ? 'Active Borrows' : 'Your Active Borrows'}
-                </div>
-                <div className="text-3xl font-bold text-emerald-400 my-1">
-                  {activeBorrows.length}
-                </div>
-                <div className="text-xs text-neutral-400">
-                  Currently checked out
-                </div>
-              </div>
-
-              <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
-                <div className="text-xs font-bold uppercase text-neutral-400">
-                  {isAdmin ? 'Returned Items' : 'Your Returned Items'}
-                </div>
-                <div className="text-3xl font-bold text-white my-1">
-                  {returnedBorrows.length}
-                </div>
-                <div className="text-xs text-neutral-400">
-                  Completed returns
-                </div>
-              </div>
-
-              <div className="bg-[#1c1c1c] p-4 rounded-lg shadow-lg border border-neutral-800">
-                <div className="text-xs font-bold uppercase text-neutral-400">
-                  {isAdmin ? 'Total Borrow Logs' : 'Your Borrow Logs'}
-                </div>
-                <div className="text-3xl font-bold text-white my-1">
-                  {scopedBorrowLogs.length}
-                </div>
-                <div className="text-xs text-neutral-400">
-                  {isAdmin ? 'All recorded checkouts' : 'Your recorded checkouts'}
-                </div>
-              </div>
-            </div>
+            <TopWidgets items={dashboardWidgets} columns={4} />
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
               <div className="lg:col-span-5 bg-[#1c1c1c] p-5 rounded-lg shadow-lg border border-neutral-800">

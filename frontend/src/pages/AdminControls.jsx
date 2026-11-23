@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ShieldCheck, RefreshCw, ArrowLeft, Search, Download, Plus, Trash2, Package,
+import { ShieldCheck, Search, Download, Plus, Trash2, Package,
 } from 'lucide-react';
 import { getComponents, getBorrowLogs, createComponent, deleteComponent, addComponentStock, exportBorrowLogsCsv,
 } from '../services/api';
 import Navbar from '../components/Navbar';
+import TopWidgets from '../components/TopWidgets';
+import PageHeader from '../components/PageHeader';
 
 const PRESET_CATEGORIES = [
   'Microcontrollers',
@@ -75,6 +77,45 @@ export default function AdminControls({
         (log) => String(log.return_quality || '').toLowerCase() === 'damaged'
       ).length,
     [returnedBorrows]
+  );
+
+  const adminWidgets = useMemo(
+    () => [
+      {
+        id: 'catalog-items',
+        label: 'Catalog Items',
+        value: components.length,
+        subtext: 'Registered hardware types',
+        valueClassName: 'text-white',
+      },
+      {
+        id: 'all-active-borrows',
+        label: 'All Active Borrows',
+        value: activeBorrows.length,
+        subtext: 'Currently checked out',
+        valueClassName: 'text-emerald-400',
+      },
+      {
+        id: 'completed-returns',
+        label: 'Completed Returns',
+        value: returnedBorrows.length,
+        subtext: 'Total returned records',
+        valueClassName: 'text-white',
+      },
+      {
+        id: 'damaged-returns',
+        label: 'Damaged Returns',
+        value: damagedReturnsCount,
+        subtext: 'Flagged during check-in',
+        valueClassName: 'text-amber-400',
+      },
+    ],
+    [
+      components.length,
+      activeBorrows.length,
+      returnedBorrows.length,
+      damagedReturnsCount,
+    ]
   );
 
   const filteredLogs = useMemo(() => {
@@ -174,7 +215,9 @@ export default function AdminControls({
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert('Failed to export CSV: ' + (err.response?.data?.error || err.message));
+      alert(
+        'Failed to export CSV: ' + (err.response?.data?.error || err.message)
+      );
     }
   };
 
@@ -196,21 +239,16 @@ export default function AdminControls({
       }}
     >
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
-        {/* Header Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <ShieldCheck className="text-emerald-400" size={22} /> Admin
-              Controls &amp; System Logs
-            </h2>
-            <p className="text-xs text-neutral-400">
-              Manage hardware inventory, audit all student checkouts, and export
-              return condition logs.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {isAdmin && (
+        <PageHeader
+          icon={ShieldCheck}
+          title="Admin Controls & System Logs"
+          subtitle="Manage hardware inventory, audit all student checkouts, and export return condition logs."
+          onRefresh={fetchAdminData}
+          refreshLabel="Refresh Data"
+          loading={loading}
+          onBack={onBackToDashboard}
+          extraActions={
+            isAdmin && (
               <button
                 type="button"
                 onClick={handleExportCsv}
@@ -219,30 +257,9 @@ export default function AdminControls({
                 <Download size={13} className="text-emerald-400" />
                 Export CSV
               </button>
-            )}
-
-            <button
-              type="button"
-              onClick={fetchAdminData}
-              disabled={loading}
-              className="px-3 py-1.5 rounded bg-[#1c1c1c] border border-neutral-800 hover:bg-neutral-800 hover:border-emerald-500/50 text-xs font-medium text-neutral-200 flex items-center gap-1.5 transition"
-            >
-              <RefreshCw
-                size={13}
-                className={`${loading ? 'animate-spin' : ''} text-emerald-400`}
-              />
-              {loading ? 'Refreshing...' : 'Refresh Data'}
-            </button>
-
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 transition"
-            >
-              <ArrowLeft size={14} /> Back to Dashboard
-            </button>
-          </div>
-        </div>
+            )
+          }
+        />
 
         {!isAdmin ? (
           <div className="bg-[#1c1c1c] p-6 rounded-lg border border-neutral-800 text-sm text-neutral-300">
@@ -250,56 +267,7 @@ export default function AdminControls({
           </div>
         ) : (
           <>
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-[#1c1c1c] p-4 rounded-lg border border-neutral-800 shadow-lg">
-                <div className="text-xs font-bold uppercase text-neutral-400">
-                  Catalog Items
-                </div>
-                <div className="text-3xl font-bold text-white my-1">
-                  {components.length}
-                </div>
-                <div className="text-xs text-neutral-400">
-                  Registered hardware types
-                </div>
-              </div>
-
-              <div className="bg-[#1c1c1c] p-4 rounded-lg border border-neutral-800 shadow-lg">
-                <div className="text-xs font-bold uppercase text-neutral-400">
-                  All Active Borrows
-                </div>
-                <div className="text-3xl font-bold text-emerald-400 my-1">
-                  {activeBorrows.length}
-                </div>
-                <div className="text-xs text-neutral-400">
-                  Currently checked out
-                </div>
-              </div>
-
-              <div className="bg-[#1c1c1c] p-4 rounded-lg border border-neutral-800 shadow-lg">
-                <div className="text-xs font-bold uppercase text-neutral-400">
-                  Completed Returns
-                </div>
-                <div className="text-3xl font-bold text-white my-1">
-                  {returnedBorrows.length}
-                </div>
-                <div className="text-xs text-neutral-400">
-                  Total returned records
-                </div>
-              </div>
-
-              <div className="bg-[#1c1c1c] p-4 rounded-lg border border-neutral-800 shadow-lg">
-                <div className="text-xs font-bold uppercase text-neutral-400">
-                  Damaged Returns
-                </div>
-                <div className="text-3xl font-bold text-amber-400 my-1">
-                  {damagedReturnsCount}
-                </div>
-                <div className="text-xs text-neutral-400">
-                  Flagged during check-in
-                </div>
-              </div>
-            </div>
+            <TopWidgets items={adminWidgets} columns={4} />
 
             {/* Inventory Management Section */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
