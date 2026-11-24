@@ -507,7 +507,7 @@ export default function AdminControls({
                 renderStatus={(log) => (
                   <BorrowStatus returnedAt={log.returned_at} size="sm" />
                 )}
-              />*
+              />
             </div>
           </>
         )}

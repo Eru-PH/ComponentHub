@@ -1,5 +1,6 @@
 import React from 'react';
-import { Package, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
+import ComponentHubLogo from '../assets/ComponentHubLogo.png';
 
 export default function Navbar({
   user,
@@ -49,8 +50,12 @@ export default function Navbar({
       {/* Left Sidebar */}
       <aside className="w-60 shrink-0 bg-[#181818] border-r border-neutral-800 flex flex-col justify-between">
         <div>
-          <div className="p-4 border-b border-neutral-800 flex items-center gap-2">
-            <Package className="text-emerald-400" size={20} />
+          <div className="p-4 border-b border-neutral-800 flex items-center gap-2.5">
+            <img
+              src={ComponentHubLogo}
+              alt="ComponentHub Logo"
+              className="w-7 h-7 object-contain rounded-md shrink-0"
+            />
             <div>
               <div className="font-bold text-sm leading-tight text-white">
                 ComponentHub
