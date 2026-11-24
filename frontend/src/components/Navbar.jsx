@@ -42,26 +42,26 @@ export default function Navbar({
 
   const isHistoryActive =
     !isAdminActive &&
-    activePage === 'dashboard' &&
-    activeSection === 'borrow-history';
+    (activePage === 'history' ||
+      (activePage === 'dashboard' && activeSection === 'borrow-history'));
 
   return (
     <div className="flex min-h-screen bg-[#121212] text-neutral-100 font-sans">
       {/* Left Sidebar */}
       <aside className="w-60 shrink-0 bg-[#181818] border-r border-neutral-800 flex flex-col justify-between">
         <div>
-          <div className="p-4 border-b border-neutral-800 flex items-center gap-2.5">
+          <div className="h-16 px-4 border-b border-neutral-800 flex items-center gap-2.5">
             <img
               src={ComponentHubLogo}
               alt="ComponentHub Logo"
               className="w-7 h-7 object-contain rounded-md shrink-0"
             />
-            <div>
-              <div className="font-bold text-sm leading-tight text-white">
+            <div className="min-w-0">
+              <div className="font-bold text-sm leading-tight text-white truncate">
                 ComponentHub
               </div>
-              <div className="text-[11px] text-neutral-400 leading-tight">
-                Inventory & Logs
+              <div className="text-[11px] text-neutral-400 leading-tight truncate">
+                Inventory &amp; Logs
               </div>
             </div>
           </div>
@@ -80,7 +80,7 @@ export default function Navbar({
               onClick={(e) => handleNavClick(e, 'borrowitem', 'borrow-catalog')}
               className={getItemClass(isBorrowActive)}
             >
-              Borrow & Catalog
+              Borrow &amp; Catalog
             </a>
 
             <button
@@ -93,7 +93,7 @@ export default function Navbar({
 
             <a
               href="#borrow-history"
-              onClick={(e) => handleNavClick(e, 'dashboard', 'borrow-history')}
+              onClick={(e) => handleNavClick(e, 'history', 'borrow-history')}
               className={getItemClass(isHistoryActive)}
             >
               Borrow History
@@ -121,8 +121,8 @@ export default function Navbar({
 
       {/* Right Column: Top Header + Main Content */}
       <div className="flex-1 flex flex-col min-w-0 bg-[#121212]">
-        <header className="bg-[#181818] border-b border-neutral-800 px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-lg font-bold text-white">
+        <header className="h-16 bg-[#181818] border-b border-neutral-800 px-6 flex items-center justify-between gap-3">
+          <h1 className="text-lg font-bold text-white leading-none truncate">
             {isAdminActive
               ? 'Admin Controls & Logs'
               : isBorrowActive
@@ -136,7 +136,7 @@ export default function Navbar({
                       : 'Dashboard'}
           </h1>
 
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex items-center gap-3 text-sm shrink-0">
             <span className="text-neutral-400">
               Logged in as{' '}
               <strong className="text-neutral-100">{user?.full_name}</strong> (
