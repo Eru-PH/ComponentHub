@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { History } from 'lucide-react';
+import { History, Search, X } from 'lucide-react';
 import { getComponents, getBorrowLogs } from '../services/api';
 import Navbar from '../components/Navbar';
 import PageHeader from '../components/PageHeader';
@@ -16,6 +16,8 @@ export default function BorrowHistory({
   const [components, setComponents] = useState([]);
   const [borrowLogs, setBorrowLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'borrowed' | 'returned'
 
   const fetchHistoryData = async () => {
     try {
@@ -62,10 +64,55 @@ export default function BorrowHistory({
     [isAdmin, borrowLogs, visibleBorrowLogs]
   );
 
+  const filteredBorrowLogs = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    return scopedBorrowLogs.filter((log) => {
+      const isReturned = Boolean(log.returned_at);
+
+      if (statusFilter === 'borrowed' && isReturned) return false;
+      if (statusFilter === 'returned' && !isReturned) return false;
+
+      if (!query) return true;
+
+      const borrower = String(log.borrower_name || '').toLowerCase();
+      const componentName = String(
+        log.components?.name || log.component_id || ''
+      ).toLowerCase();
+      const category = String(log.components?.category || '').toLowerCase();
+
+      return (
+        borrower.includes(query) ||
+        componentName.includes(query) ||
+        category.includes(query)
+      );
+    });
+  }, [scopedBorrowLogs, searchQuery, statusFilter]);
+
   const activeBorrowsCount = useMemo(
     () => scopedBorrowLogs.filter((log) => !log.returned_at).length,
     [scopedBorrowLogs]
   );
+
+  const statusCounts = useMemo(() => {
+    const returned = scopedBorrowLogs.filter((log) =>
+      Boolean(log.returned_at)
+    ).length;
+    return {
+      all: scopedBorrowLogs.length,
+      borrowed: scopedBorrowLogs.length - returned,
+      returned,
+    };
+  }, [scopedBorrowLogs]);
+
+  const filterOptions = [
+    { id: 'all', label: 'All', count: statusCounts.all },
+    { id: 'borrowed', label: 'Borrowed', count: statusCounts.borrowed },
+    { id: 'returned', label: 'Returned', count: statusCounts.returned },
+  ];
+
+  const hasActiveFilters =
+    searchQuery.trim().length > 0 || statusFilter !== 'all';
 
   return (
     <Navbar
@@ -80,7 +127,11 @@ export default function BorrowHistory({
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
         <PageHeader
           icon={History}
-          title={isAdmin ? 'All Borrow & Return History' : 'Your Borrow & Return History'}
+          title={
+            isAdmin
+              ? 'All Borrow & Return History'
+              : 'Your Borrow & Return History'
+          }
           subtitle={
             isAdmin
               ? `Complete checkout and return records across all students (${components.length} tracked components).`
@@ -91,15 +142,70 @@ export default function BorrowHistory({
           loading={loading}
         />
 
-        <div className="bg-[#1c1c1c] p-6 rounded-lg shadow-lg border border-neutral-800">
+        <div className="bg-[#1c1c1c] p-6 rounded-lg shadow-lg border border-neutral-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            {/* Search Box */}
+            <div className="relative flex-1 max-w-md">
+              <Search
+                size={15}
+                className="text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={
+                  isAdmin
+                    ? 'Search borrower, component, or category...'
+                    : 'Search component or category...'
+                }
+                className="w-full pl-9 pr-8 py-2 rounded-lg bg-[#141414] border border-neutral-700 text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-emerald-400 transition"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  className="text-neutral-400 hover:text-white absolute right-2.5 top-1/2 -translate-y-1/2 transition"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* Status Filter Pills */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              {filterOptions.map((pill) => {
+                const isSelected = statusFilter === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    type="button"
+                    onClick={() => setStatusFilter(pill.id)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border tabular-nums transition active:scale-[0.98] ${
+                      isSelected
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/50 font-semibold'
+                        : 'bg-[#141414] text-neutral-400 border-neutral-800 hover:text-neutral-200 hover:border-neutral-700'
+                    }`}
+                  >
+                    {pill.label}{' '}
+                    <span className="ml-1 opacity-80">({pill.count})</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <BorrowHistoryTable
-            logs={scopedBorrowLogs}
+            logs={filteredBorrowLogs}
             loading={loading}
             loadingMessage="Loading borrow history..."
             emptyMessage={
-              isAdmin
-                ? 'No borrow records found yet.'
-                : 'No borrow records found for your account yet.'
+              hasActiveFilters
+                ? 'No matching borrow records for your current filter.'
+                : isAdmin
+                  ? 'No borrow records found yet.'
+                  : 'No borrow records found for your account yet.'
             }
             showCategory={true}
             renderStatus={(log) => (
@@ -113,7 +219,7 @@ export default function BorrowHistory({
             <button
               type="button"
               onClick={onBackToDashboard}
-              className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-medium text-neutral-200 transition"
+              className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-medium text-neutral-200 transition active:scale-[0.99]"
             >
               Back to Dashboard Overview
             </button>
