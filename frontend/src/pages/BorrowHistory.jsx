@@ -140,6 +140,7 @@ export default function BorrowHistory({
           onRefresh={fetchHistoryData}
           refreshLabel="Refresh Data"
           loading={loading}
+          onBack={onBackToDashboard}
         />
 
         <div className="bg-[#1c1c1c] p-6 rounded-lg shadow-lg border border-neutral-800 space-y-4">
@@ -213,18 +214,6 @@ export default function BorrowHistory({
             )}
           />
         </div>
-
-        {onBackToDashboard && (
-          <div>
-            <button
-              type="button"
-              onClick={onBackToDashboard}
-              className="px-4 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-medium text-neutral-200 transition active:scale-[0.99]"
-            >
-              Back to Dashboard Overview
-            </button>
-          </div>
-        )}
       </div>
     </Navbar>
   );
