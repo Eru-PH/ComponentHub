@@ -4,8 +4,9 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
 });
 
-// Login endpoints
+// Registration/Login Endpoints
 export const loginUser = (credentials) => api.post('/api/login', credentials);
+export const registerUser = (payload) => api.post('/api/register', payload);
 
 // Inventory endpoints
 export const getComponents = () => api.get('/api/components');
