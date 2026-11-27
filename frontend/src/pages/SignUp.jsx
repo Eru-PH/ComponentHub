@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { UserPlus, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import ComponentHubLogo from '../assets/ComponentHubLogo.png';
 import { registerUser, loginUser } from '../services/api';
+import { isValidEmail } from '../utils/validation';
 
 export default function SignUp({ onAuthSuccess, onSwitchToLogin }) {
   const [signUpForm, setSignUpForm] = useState({
@@ -17,13 +18,38 @@ export default function SignUp({ onAuthSuccess, onSwitchToLogin }) {
   const handleSignUp = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+
+    const trimmedName = signUpForm.full_name.trim();
+    const trimmedEmail = signUpForm.email.trim();
+    const rawPassword = signUpForm.password;
+
+    if (!trimmedName) {
+      setErrorMsg('Please enter your full name.');
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      setErrorMsg('Please enter a valid email address with @ and .');
+      return;
+    }
+
+    if (!rawPassword.trim()) {
+      setErrorMsg('Password cannot be blank or spaces only.');
+      return;
+    }
+
+    if (rawPassword.length < 6) {
+      setErrorMsg('Password must be at least 6 characters.');
+      return;
+    }
+
     setSubmitting(true);
 
     const payload = {
-      full_name: signUpForm.full_name.trim(),
+      full_name: trimmedName,
       borrower_key: signUpForm.borrower_key.trim() || undefined,
-      email: signUpForm.email.trim(),
-      password: signUpForm.password,
+      email: trimmedEmail,
+      password: rawPassword,
       role: 'student',
     };
 
@@ -78,7 +104,7 @@ export default function SignUp({ onAuthSuccess, onSwitchToLogin }) {
         </div>
       )}
 
-      <form onSubmit={handleSignUp} className="space-y-3.5">
+      <form onSubmit={handleSignUp} noValidate className="space-y-3.5">
         <div>
           <label className="block text-xs font-medium text-neutral-400 mb-1.5">
             Full name
@@ -91,7 +117,7 @@ export default function SignUp({ onAuthSuccess, onSwitchToLogin }) {
               setSignUpForm({ ...signUpForm, full_name: e.target.value })
             }
             placeholder="Enter your full name"
-            className="w-full px-3.5 py-2.5 rounded-lg bg-[#252525] border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+            className="w-full px-3.5 py-2.5 rounded-lg bg-[#252525]/90 border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
           />
         </div>
 
@@ -107,7 +133,7 @@ export default function SignUp({ onAuthSuccess, onSwitchToLogin }) {
               setSignUpForm({ ...signUpForm, borrower_key: e.target.value })
             }
             placeholder="e.g. TUPM-24-XXXX"
-            className="w-full px-3.5 py-2.5 rounded-lg bg-[#252525] border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+            className="w-full px-3.5 py-2.5 rounded-lg bg-[#252525]/90 border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
           />
         </div>
 
@@ -123,7 +149,7 @@ export default function SignUp({ onAuthSuccess, onSwitchToLogin }) {
               setSignUpForm({ ...signUpForm, email: e.target.value })
             }
             placeholder="student@example.com"
-            className="w-full px-3.5 py-2.5 rounded-lg bg-[#252525] border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+            className="w-full px-3.5 py-2.5 rounded-lg bg-[#252525]/90 border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
           />
         </div>
 
@@ -141,7 +167,7 @@ export default function SignUp({ onAuthSuccess, onSwitchToLogin }) {
                 setSignUpForm({ ...signUpForm, password: e.target.value })
               }
               placeholder="Create a password (min. 6 characters)"
-              className="w-full px-3.5 py-2.5 pr-10 rounded-lg bg-[#252525] border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+              className="w-full px-3.5 py-2.5 pr-10 rounded-lg bg-[#252525]/90 border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
             />
             <button
               type="button"
@@ -157,7 +183,7 @@ export default function SignUp({ onAuthSuccess, onSwitchToLogin }) {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full mt-2 bg-emerald-600 text-white py-2.5 rounded-lg hover:bg-emerald-500 font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition shadow-lg shadow-emerald-950/40"
+          className="w-full mt-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white py-2.5 rounded-lg hover:from-emerald-500 hover:to-emerald-400 font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition shadow-lg shadow-emerald-950/40"
         >
           <UserPlus size={16} />
           {submitting ? 'Creating account...' : 'Create Student Account'}

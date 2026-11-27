@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Eye, EyeOff, UserPlus } from 'lucide-react';
 import ComponentHubLogo from '../assets/ComponentHubLogo.png';
 import { loginUser } from '../services/api';
+import { isValidEmail } from '../utils/validation';
 
 export default function Login({ onAuthSuccess, onSwitchToSignUp }) {
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
@@ -12,9 +13,19 @@ export default function Login({ onAuthSuccess, onSwitchToSignUp }) {
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+
+    const trimmedEmail = loginForm.email.trim();
+    if (!isValidEmail(trimmedEmail)) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const res = await loginUser(loginForm);
+      const res = await loginUser({
+        ...loginForm,
+        email: trimmedEmail,
+      });
       onAuthSuccess?.(res.data);
       setLoginForm({ email: '', password: '' });
     } catch (err) {
@@ -50,7 +61,7 @@ export default function Login({ onAuthSuccess, onSwitchToSignUp }) {
         </div>
       )}
 
-      <form onSubmit={handleLogin} className="space-y-4">
+      <form onSubmit={handleLogin} noValidate className="space-y-4">
         <div>
           <label className="block text-xs font-medium text-neutral-400 mb-1.5">
             Email address
@@ -63,7 +74,7 @@ export default function Login({ onAuthSuccess, onSwitchToSignUp }) {
               setLoginForm({ ...loginForm, email: e.target.value })
             }
             placeholder="student@example.com"
-            className="w-full px-3.5 py-2.5 rounded-lg bg-[#252525] border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+            className="w-full px-3.5 py-2.5 rounded-lg bg-[#252525]/90 border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
           />
         </div>
 
@@ -80,7 +91,7 @@ export default function Login({ onAuthSuccess, onSwitchToSignUp }) {
                 setLoginForm({ ...loginForm, password: e.target.value })
               }
               placeholder="Enter your password"
-              className="w-full px-3.5 py-2.5 pr-10 rounded-lg bg-[#252525] border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
+              className="w-full px-3.5 py-2.5 pr-10 rounded-lg bg-[#252525]/90 border border-neutral-700/80 text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition"
             />
             <button
               type="button"
@@ -96,7 +107,7 @@ export default function Login({ onAuthSuccess, onSwitchToSignUp }) {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full mt-2 bg-emerald-600 text-white py-2.5 rounded-lg hover:bg-emerald-500 font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition shadow-lg shadow-emerald-950/40"
+          className="w-full mt-2 bg-gradient-to-r from-emerald-600 to-emerald-500 text-white py-2.5 rounded-lg hover:from-emerald-500 hover:to-emerald-400 font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition shadow-lg shadow-emerald-950/40"
         >
           <Lock size={16} />
           {submitting ? 'Signing in...' : 'Sign In'}
@@ -108,7 +119,7 @@ export default function Login({ onAuthSuccess, onSwitchToSignUp }) {
           <div className="w-full border-t border-neutral-800" />
         </div>
         <div className="relative flex justify-center text-xs">
-          <span className="bg-[#1c1c1c] px-3 text-neutral-500">
+          <span className="bg-[#1b1c1c] px-3 text-neutral-500">
             New to ComponentHub?
           </span>
         </div>
@@ -117,7 +128,7 @@ export default function Login({ onAuthSuccess, onSwitchToSignUp }) {
       <button
         type="button"
         onClick={onSwitchToSignUp}
-        className="w-full py-2.5 px-4 border border-neutral-700/80 bg-[#222222] rounded-lg hover:bg-neutral-800 hover:border-emerald-500/50 text-xs font-semibold text-neutral-200 flex items-center justify-center gap-2 transition"
+        className="w-full py-2.5 px-4 border border-neutral-700/80 bg-[#222222]/90 rounded-lg hover:bg-neutral-800 hover:border-emerald-500/50 text-xs font-semibold text-neutral-200 flex items-center justify-center gap-2 transition"
       >
         <UserPlus size={15} className="text-emerald-400" />
         Create a student account

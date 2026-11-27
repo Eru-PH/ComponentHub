@@ -229,36 +229,57 @@ export default function Dashboard({ user, onLogout }) {
       onNavigate={handleNavigate}
     >
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
-        <PageHeader
-          icon={LayoutDashboard}
-          title={isAdmin ? 'Admin Dashboard' : 'Dashboard Overview'}
-          subtitle={
-            isAdmin
-              ? `System inventory overview and all student borrow/return activity (${user?.full_name || user?.email || 'Admin'}).`
-              : `Overview of electronics inventory and your personal borrow/return activity (${user?.full_name || user?.email || 'User'}).`
-          }
-          onRefresh={fetchDashboardData}
-          refreshLabel="Refresh Data"
-          loading={loading}
-        />
+        <div
+          className="animate-card-in"
+          style={{ animationDelay: '0ms' }}
+        >
+          <PageHeader
+            icon={LayoutDashboard}
+            title={isAdmin ? 'Admin Dashboard' : 'Dashboard Overview'}
+            subtitle={
+              isAdmin
+                ? `System inventory overview and all student borrow/return activity (${user?.full_name || user?.email || 'Admin'}).`
+                : `Overview of electronics inventory and your personal borrow/return activity (${user?.full_name || user?.email || 'User'}).`
+            }
+            onRefresh={fetchDashboardData}
+            refreshLabel="Refresh Data"
+            loading={loading}
+          />
+        </div>
 
-        <TopWidgets items={dashboardWidgets} columns={4} />
+        <div
+          className="animate-card-in"
+          style={{ animationDelay: '60ms' }}
+        >
+          <TopWidgets items={dashboardWidgets} columns={4} />
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-6">
+          <div
+            className="lg:col-span-6 animate-card-in"
+            style={{ animationDelay: '120ms' }}
+          >
             <StockCategory components={components} />
           </div>
 
-          <div className="lg:col-span-6">
+          <div
+            className="lg:col-span-6 animate-card-in"
+            style={{ animationDelay: '160ms' }}
+          >
             <MostBorrowed logs={scopedBorrowLogs} loading={loading} />
           </div>
         </div>
 
-        <RecentBorrow
-          logs={recentActivityLogs}
-          isAdmin={isAdmin}
-          loading={loading}
-        />
+        <div
+          className="animate-card-in"
+          style={{ animationDelay: '210ms' }}
+        >
+          <RecentBorrow
+            logs={recentActivityLogs}
+            isAdmin={isAdmin}
+            loading={loading}
+          />
+        </div>
       </div>
     </Navbar>
   );

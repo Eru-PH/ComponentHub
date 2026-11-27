@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Package, Search } from 'lucide-react';
+import { Package, Search, Plus, Minus } from 'lucide-react';
 import { getComponents, borrowComponent } from '../services/api';
 import Navbar from '../components/Navbar';
 import PageHeader from '../components/PageHeader';
@@ -16,15 +16,13 @@ export default function BorrowItem({
   const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
-  const accountBorrowerName = user?.borrower_identity || user?.full_name || user?.email || '';
+  const accountBorrowerName =
+    user?.borrower_identity || user?.full_name || user?.email || '';
 
-  const [borrowData, setBorrowData] = useState({
-    component_id: '',
-    borrower_name: accountBorrowerName,
-    quantity_borrowed: 1,
-  });
+  const [borrowerName, setBorrowerName] = useState(accountBorrowerName);
+  // Map of { [componentId]: quantitySelected }
+  const [selectedItems, setSelectedItems] = useState({});
 
-  // Load inventory
   const fetchComponents = async () => {
     try {
       setLoading(true);
@@ -41,34 +39,13 @@ export default function BorrowItem({
     fetchComponents();
   }, []);
 
-  // Sync borrower identity
   useEffect(() => {
     if (!user) return;
-    const resolvedName = user?.borrower_identity || user?.full_name || user?.email || '';
-    setBorrowData((prev) => ({
-      ...prev,
-      borrower_name: !isAdmin
-        ? resolvedName
-        : prev.borrower_name || resolvedName,
-    }));
+    const resolvedName =
+      user?.borrower_identity || user?.full_name || user?.email || '';
+    setBorrowerName((prev) => (!isAdmin ? resolvedName : prev || resolvedName));
   }, [user, isAdmin]);
 
-  // In-stock items
-  const availableComponents = useMemo(
-    () =>
-      components.filter(
-        (c) => Number(c.quantity) > 0 && c.status !== 'Destroyed'
-      ),
-    [components]
-  );
-
-  const selectedComponent = useMemo(
-    () =>
-      components.find((c) => String(c.id) === String(borrowData.component_id)),
-    [components, borrowData.component_id]
-  );
-
-  // Search filter
   const filteredComponents = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
     return components.filter((item) => {
@@ -84,38 +61,110 @@ export default function BorrowItem({
     });
   }, [components, searchTerm]);
 
-  // Checkout submit
-  const handleBorrowSubmit = async (e) => {
+  const handleToggleCard = (item) => {
+    const id = String(item.id);
+    const maxStock = Number(item.quantity) || 0;
+    if (maxStock <= 0 || item.status === 'Destroyed') return;
+
+    setSelectedItems((prev) => {
+      const next = { ...prev };
+      if (next[id]) {
+        delete next[id];
+      } else {
+        next[id] = 1;
+      }
+      return next;
+    });
+  };
+
+  const handleAdjustQty = (e, item, delta) => {
+    e.stopPropagation();
+    const id = String(item.id);
+    const maxStock = Number(item.quantity) || 0;
+
+    setSelectedItems((prev) => {
+      const current = prev[id] || 0;
+      const updated = current + delta;
+      const next = { ...prev };
+
+      if (updated <= 0) {
+        delete next[id];
+      } else {
+        next[id] = Math.min(maxStock, updated);
+      }
+      return next;
+    });
+  };
+
+  const selectedEntries = useMemo(() => {
+    return Object.entries(selectedItems)
+      .filter(([, qty]) => qty > 0)
+      .map(([id, qty]) => {
+        const comp = components.find((c) => String(c.id) === String(id));
+        return {
+          component_id: id,
+          name: comp?.name || id,
+          quantity_borrowed: qty,
+        };
+      });
+  }, [selectedItems, components]);
+
+  const totalUnits = useMemo(
+    () =>
+      selectedEntries.reduce((sum, item) => sum + item.quantity_borrowed, 0),
+    [selectedEntries]
+  );
+
+  const handleCheckoutSubmit = async (e) => {
     e.preventDefault();
-    if (!borrowData.component_id) {
-      alert('Please select a component to borrow.');
+    if (selectedEntries.length === 0) {
+      alert('Please select at least one component from the catalog.');
       return;
     }
 
     const finalBorrowerName = !isAdmin
       ? accountBorrowerName
-      : borrowData.borrower_name || accountBorrowerName;
+      : borrowerName.trim() || accountBorrowerName;
 
-    try {
-      setSubmitting(true);
-      await borrowComponent({
-        ...borrowData,
-        borrower_name: finalBorrowerName,
-        quantity_borrowed: Number(borrowData.quantity_borrowed) || 1,
-      });
-      alert('Item successfully checked out and inventory updated!');
-      setBorrowData({
-        component_id: '',
-        borrower_name: finalBorrowerName,
-        quantity_borrowed: 1,
-      });
-      await fetchComponents();
-    } catch (err) {
+    setSubmitting(true);
+    const succeededIds = [];
+    const failedMessages = [];
+
+    for (const entry of selectedEntries) {
+      try {
+        await borrowComponent({
+          component_id: entry.component_id,
+          borrower_name: finalBorrowerName,
+          quantity_borrowed: entry.quantity_borrowed,
+        });
+        succeededIds.push(String(entry.component_id));
+      } catch (err) {
+        failedMessages.push(
+          `${entry.name}: ${err.response?.data?.error || err.message}`
+        );
+      }
+    }
+
+    setSelectedItems((prev) => {
+      const next = { ...prev };
+      for (const id of succeededIds) {
+        delete next[id];
+      }
+      return next;
+    });
+
+    await fetchComponents();
+    setSubmitting(false);
+
+    if (failedMessages.length === 0) {
       alert(
-        'Error borrowing item: ' + (err.response?.data?.error || err.message)
+        `Checked out ${succeededIds.length} component(s) (${totalUnits} total units)!`
       );
-    } finally {
-      setSubmitting(false);
+    } else {
+      alert(
+        `Checked out ${succeededIds.length} item(s), with errors on:\n\n` +
+          failedMessages.join('\n')
+      );
     }
   };
 
@@ -144,123 +193,26 @@ export default function BorrowItem({
         <PageHeader
           icon={Package}
           title="Equipment Catalog"
-          subtitle="Browse available hardware components and submit a checkout request."
+          subtitle="Click components below to select them, adjust quantities, and check out."
           onRefresh={fetchComponents}
           refreshLabel="Refresh Catalog"
           loading={loading}
           onBack={onBackToDashboard}
         />
 
-        {/* Checkout Form */}
-        <div className="bg-[#1c1c1c] p-6 rounded-lg border border-neutral-800 shadow-lg">
-          <h3 className="text-base font-bold text-white mb-4">
-            Request a Component Checkout
-          </h3>
-
-          <form
-            onSubmit={handleBorrowSubmit}
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
-          >
-            <div>
-              <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                Select Component
-              </label>
-              <select
-                value={borrowData.component_id}
-                onChange={(e) =>
-                  setBorrowData({
-                    ...borrowData,
-                    component_id: e.target.value,
-                    quantity_borrowed: 1,
-                  })
-                }
-                required
-                className="w-full rounded bg-[#141414] border border-neutral-700 p-2 text-neutral-100 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              >
-                <option value="">
-                  {availableComponents.length > 0
-                    ? '-- Choose Hardware --'
-                    : '-- No Hardware Currently In Stock --'}
-                </option>
-                {availableComponents.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.quantity} available)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                Quantity to Borrow
-              </label>
-              <input
-                type="number"
-                min="1"
-                max={
-                  selectedComponent
-                    ? Number(selectedComponent.quantity) || 1
-                    : undefined
-                }
-                value={borrowData.quantity_borrowed}
-                onChange={(e) =>
-                  setBorrowData({
-                    ...borrowData,
-                    quantity_borrowed: Math.max(
-                      1,
-                      parseInt(e.target.value, 10) || 1
-                    ),
-                  })
-                }
-                required
-                className="w-full rounded bg-[#141414] border border-neutral-700 p-2 text-neutral-100 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
-                Borrower Full Name
-              </label>
-              <input
-                type="text"
-                value={borrowData.borrower_name}
-                onChange={(e) =>
-                  setBorrowData({
-                    ...borrowData,
-                    borrower_name: e.target.value,
-                  })
-                }
-                readOnly={!isAdmin}
-                required
-                placeholder="Enter your full name"
-                className={`w-full rounded bg-[#141414] border border-neutral-700 p-2 text-neutral-100 placeholder:text-neutral-500 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 ${
-                  !isAdmin ? 'opacity-75 cursor-not-allowed' : ''
-                }`}
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <button
-                type="submit"
-                disabled={submitting || availableComponents.length === 0}
-                className="w-full bg-emerald-600 text-white py-2 rounded hover:bg-emerald-500 font-semibold text-sm disabled:opacity-60 transition"
-              >
-                {submitting ? 'Submitting Request...' : 'Submit Borrow Request'}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Catalog Grid */}
-        <div className="bg-[#1c1c1c] p-6 rounded-lg border border-neutral-800 shadow-lg space-y-4">
+        {/* Catalog Grid + Checkout Action */}
+        <form
+          onSubmit={handleCheckoutSubmit}
+          className="bg-[#1c1c1c] p-6 rounded-lg border border-neutral-800 shadow-lg space-y-5"
+        >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-base font-bold text-white">
                 Available Equipment Catalog ({filteredComponents.length})
               </h3>
               <p className="text-xs text-neutral-400">
-                Click Select on any available item to load it into the checkout
-                form.
+                Press any card to select it, then use - / + in the bottom-right
+                corner to adjust quantity.
               </p>
             </div>
 
@@ -290,34 +242,55 @@ export default function BorrowItem({
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {filteredComponents.map((item) => {
-                const isSelected =
-                  String(borrowData.component_id) === String(item.id);
-                const canBorrow =
-                  Number(item.quantity) > 0 && item.status !== 'Destroyed';
+                const maxStock = Number(item.quantity) || 0;
+                const canBorrow = maxStock > 0 && item.status !== 'Destroyed';
+                const qty = selectedItems[String(item.id)] || 0;
+                const isSelected = qty > 0;
 
                 return (
                   <div
                     key={item.id}
-                    className={`p-4 rounded-lg border flex flex-col justify-between transition ${
+                    role="button"
+                    tabIndex={canBorrow ? 0 : -1}
+                    aria-pressed={isSelected}
+                    onClick={() => canBorrow && handleToggleCard(item)}
+                    onKeyDown={(e) => {
+                      if (canBorrow && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault();
+                        handleToggleCard(item);
+                      }
+                    }}
+                    className={`p-4 rounded-lg border flex flex-col justify-between select-none transition ${
                       isSelected
                         ? 'border-emerald-500 bg-emerald-950/25'
-                        : 'border-neutral-800 bg-[#141414]'
+                        : canBorrow
+                          ? 'border-neutral-800 bg-[#141414] hover:border-neutral-600 cursor-pointer'
+                          : 'border-neutral-800/70 bg-[#141414]/60 opacity-60 cursor-not-allowed'
                     }`}
                   >
-                    <div>
-                      <h4 className="font-bold text-base text-white">
-                        {item.name}
-                      </h4>
-                      <p className="text-xs text-neutral-400 mt-0.5">
-                        Category: {item.category || 'Uncategorized'}
-                      </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-base text-white">
+                          {item.name}
+                        </h4>
+                        <p className="text-xs text-neutral-400 mt-0.5">
+                          Category: {item.category || 'Uncategorized'}
+                        </p>
+                      </div>
+
+                      {isSelected && (
+                        <span className="px-2 py-0.5 text-[11px] font-semibold rounded bg-emerald-600 text-white shrink-0">
+                          Selected
+                        </span>
+                      )}
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-neutral-800 flex items-center justify-between gap-2">
+                    {/* Bottom row: Stock on left, -1 / qty / +1 stepper on bottom-right when selected */}
+                    <div className="mt-4 pt-3 border-t border-neutral-800 flex items-center justify-between gap-2 min-h-[34px]">
                       <div className="flex items-center gap-2">
                         <span
                           className={`px-2 py-0.5 text-xs rounded font-semibold ${
-                            Number(item.quantity) > 0
+                            maxStock > 0
                               ? 'bg-emerald-950 text-emerald-300 border border-emerald-700/60'
                               : 'bg-red-950/70 text-red-300 border border-red-800/60'
                           }`}
@@ -329,24 +302,32 @@ export default function BorrowItem({
                         </span>
                       </div>
 
-                      {canBorrow && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setBorrowData((prev) => ({
-                              ...prev,
-                              component_id: String(item.id),
-                              quantity_borrowed: 1,
-                            }))
-                          }
-                          className={`px-2.5 py-1 text-xs font-medium rounded transition ${
-                            isSelected
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-neutral-800 text-emerald-300 hover:bg-neutral-700'
-                          }`}
+                      {isSelected && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex items-center rounded border border-emerald-500/50 bg-[#1c1c1c] overflow-hidden"
                         >
-                          {isSelected ? 'Selected' : 'Select'}
-                        </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleAdjustQty(e, item, -1)}
+                            aria-label="Decrease quantity"
+                            className="px-2 py-1 text-neutral-200 hover:bg-neutral-800 hover:text-white transition"
+                          >
+                            <Minus size={13} />
+                          </button>
+                          <span className="px-2.5 text-xs font-bold text-emerald-300 tabular-nums">
+                            {qty}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={qty >= maxStock}
+                            onClick={(e) => handleAdjustQty(e, item, 1)}
+                            aria-label="Increase quantity"
+                            className="px-2 py-1 text-neutral-200 hover:bg-neutral-800 hover:text-white disabled:opacity-30 transition"
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -354,7 +335,53 @@ export default function BorrowItem({
               })}
             </div>
           )}
-        </div>
+
+          {/* Borrower + Submit Bar */}
+          <div className="pt-4 border-t border-neutral-800 flex flex-col sm:flex-row items-stretch sm:items-end justify-between gap-4">
+            <div className="flex-1 max-w-md">
+              <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1">
+                Borrower Full Name
+              </label>
+              <input
+                type="text"
+                value={borrowerName}
+                onChange={(e) => setBorrowerName(e.target.value)}
+                readOnly={!isAdmin}
+                required
+                placeholder="Enter borrower full name"
+                className={`w-full rounded bg-[#141414] border border-neutral-700 p-2 text-neutral-100 placeholder:text-neutral-500 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 ${
+                  !isAdmin ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
+              />
+            </div>
+
+            <div className="flex items-center gap-3">
+              {selectedEntries.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedItems({})}
+                  className="px-3 py-2 rounded border border-neutral-700 text-xs text-neutral-300 hover:text-white hover:border-neutral-500 transition"
+                >
+                  Clear ({selectedEntries.length})
+                </button>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting || selectedEntries.length === 0}
+                className="px-5 py-2 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm disabled:opacity-50 transition"
+              >
+                {submitting
+                  ? 'Checking out...'
+                  : selectedEntries.length > 0
+                    ? `Checkout (${selectedEntries.length} ${
+                        selectedEntries.length === 1 ? 'Item' : 'Items'
+                      }, ${totalUnits} ${totalUnits === 1 ? 'Unit' : 'Units'})`
+                    : 'Select Items to Checkout'}
+              </button>
+            </div>
+          </div>
+        </form>
       </div>
     </Navbar>
   );
