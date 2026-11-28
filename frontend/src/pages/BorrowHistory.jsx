@@ -6,6 +6,16 @@ import PageHeader from '../components/PageHeader';
 import BorrowHistoryTable from '../components/BorrowHistoryTable';
 import BorrowStatus from '../components/BorrowStatus';
 
+const getLogState = (log) => {
+  if (log.status === 'Lost' || log.return_quality === 'Lost') {
+    return 'lost';
+  }
+  if (log.returned_at || log.status === 'Returned') {
+    return 'returned';
+  }
+  return 'borrowed';
+};
+
 export default function BorrowHistory({
   user,
   isAdmin,
@@ -17,7 +27,7 @@ export default function BorrowHistory({
   const [borrowLogs, setBorrowLogs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'borrowed' | 'returned'
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'borrowed' | 'returned' | 'lost'
 
   const fetchHistoryData = async () => {
     try {
@@ -68,10 +78,9 @@ export default function BorrowHistory({
     const query = searchQuery.trim().toLowerCase();
 
     return scopedBorrowLogs.filter((log) => {
-      const isReturned = Boolean(log.returned_at);
+      const state = getLogState(log);
 
-      if (statusFilter === 'borrowed' && isReturned) return false;
-      if (statusFilter === 'returned' && !isReturned) return false;
+      if (statusFilter !== 'all' && state !== statusFilter) return false;
 
       if (!query) return true;
 
@@ -90,18 +99,27 @@ export default function BorrowHistory({
   }, [scopedBorrowLogs, searchQuery, statusFilter]);
 
   const activeBorrowsCount = useMemo(
-    () => scopedBorrowLogs.filter((log) => !log.returned_at).length,
+    () => scopedBorrowLogs.filter((log) => getLogState(log) === 'borrowed').length,
     [scopedBorrowLogs]
   );
 
   const statusCounts = useMemo(() => {
-    const returned = scopedBorrowLogs.filter((log) =>
-      Boolean(log.returned_at)
-    ).length;
+    let borrowed = 0;
+    let returned = 0;
+    let lost = 0;
+
+    scopedBorrowLogs.forEach((log) => {
+      const state = getLogState(log);
+      if (state === 'lost') lost += 1;
+      else if (state === 'returned') returned += 1;
+      else borrowed += 1;
+    });
+
     return {
       all: scopedBorrowLogs.length,
-      borrowed: scopedBorrowLogs.length - returned,
+      borrowed,
       returned,
+      lost,
     };
   }, [scopedBorrowLogs]);
 
@@ -109,6 +127,7 @@ export default function BorrowHistory({
     { id: 'all', label: 'All', count: statusCounts.all },
     { id: 'borrowed', label: 'Borrowed', count: statusCounts.borrowed },
     { id: 'returned', label: 'Returned', count: statusCounts.returned },
+    { id: 'lost', label: 'Lost', count: statusCounts.lost },
   ];
 
   const hasActiveFilters =
@@ -209,9 +228,17 @@ export default function BorrowHistory({
                   : 'No borrow records found for your account yet.'
             }
             showCategory={true}
-            renderStatus={(log) => (
-              <BorrowStatus returnedAt={log.returned_at} size="sm" />
-            )}
+            renderStatus={(log) => {
+              const state = getLogState(log);
+              if (state === 'lost') {
+                return (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-950/80 text-amber-300 border border-amber-700/60">
+                    Lost
+                  </span>
+                );
+              }
+              return <BorrowStatus returnedAt={log.returned_at} size="sm" />;
+            }}
           />
         </div>
       </div>

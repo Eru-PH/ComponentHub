@@ -15,13 +15,12 @@
   animation: postLoginCardIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Auto-apply subtle card entrance on dark card surfaces across pages */
-[class*="bg-[#1c1c1c]"],
-[class*="bg-[#141414]"] {
+div[class*="bg-[#1c1c1c]"][class*="rounded"],
+form[class*="bg-[#1c1c1c]"][class*="rounded"],
+div[class*="bg-[#141414]"][class*="rounded-lg"][class*="p-"] {
   animation: postLoginCardIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Keep .pressable usable as a class AND auto-apply tactile press to buttons */
 .pressable,
 button:not(:disabled),
 [role="button"]:not([aria-disabled="true"]) {
@@ -40,8 +39,9 @@ button:not(:disabled):active,
 
 @media (prefers-reduced-motion: reduce) {
   .animate-card-in,
-  [class*="bg-[#1c1c1c]"],
-  [class*="bg-[#141414]"],
+  div[class*="bg-[#1c1c1c]"][class*="rounded"],
+  form[class*="bg-[#1c1c1c]"][class*="rounded"],
+  div[class*="bg-[#141414]"][class*="rounded-lg"][class*="p-"],
   .pressable,
   button,
   [role="button"] {

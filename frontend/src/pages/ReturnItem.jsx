@@ -5,7 +5,7 @@ import Navbar from '../components/Navbar';
 import TopWidgets from '../components/TopWidgets';
 import PageHeader from '../components/PageHeader';
 
-const RETURN_QUALITIES = ['Good', 'Fair', 'Damaged'];
+const RETURN_QUALITIES = ['Good', 'Fair', 'Damaged', 'Lost'];
 
 export default function ReturnItem({
   user,
@@ -173,6 +173,28 @@ export default function ReturnItem({
     }
   };
 
+  const handleMarkLost = async (log) => {
+    const itemName = log.components?.name || log.component_id;
+    const confirmed = window.confirm(
+      `Mark "${itemName}" (Qty: ${log.quantity_borrowed}) borrowed by ${log.borrower_name} as LOST?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setReturningId(log.id);
+      await returnComponent(log.id, 'Lost');
+      alert(`Item "${itemName}" has been marked as Lost.`);
+      await fetchLogs();
+    } catch (err) {
+      alert(
+        'Error marking item as lost: ' +
+          (err.response?.data?.error || err.message)
+      );
+    } finally {
+      setReturningId(null);
+    }
+  };
+
   return (
     <Navbar
       user={user}
@@ -192,10 +214,10 @@ export default function ReturnItem({
       <div className="max-w-7xl mx-auto space-y-6 text-neutral-100">
         <PageHeader
           icon={RotateCcw}
-          title="Return Borrowed Equipment"
+          title={isAdmin ? 'Manage Active Borrows' : 'Return Borrowed Equipment'}
           subtitle={
             isAdmin
-              ? 'Filter by borrowed component, select return condition, and check in hardware.'
+              ? 'Monitor active borrowed hardware and mark unreturned items as lost.'
               : `Showing active borrowed items for ${
                   user?.full_name || user?.email || 'your account'
                 }.`
@@ -217,10 +239,10 @@ export default function ReturnItem({
             >
               Borrowed Component
             </label>
-            <div className="relative">
+            <div className="relative flex items-center">
               <Filter
                 size={14}
-                className="text-emerald-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                className="text-emerald-400 absolute left-3 z-10 pointer-events-none"
               />
               <select
                 id="borrowed-component-select"
@@ -244,10 +266,10 @@ export default function ReturnItem({
             <label className="block text-xs font-semibold uppercase text-neutral-400 mb-1.5">
               Search by Borrower or Component
             </label>
-            <div className="relative">
+            <div className="relative flex items-center">
               <Search
                 size={15}
-                className="text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2"
+                className="text-neutral-500 absolute left-3 z-10 pointer-events-none"
               />
               <input
                 type="text"
@@ -260,7 +282,7 @@ export default function ReturnItem({
           </div>
         </div>
 
-        {/* Interactive Return Table */}
+        {/* Interactive Return / Lost Table */}
         <div className="bg-[#1c1c1c] p-6 rounded-lg border border-neutral-800 shadow-lg">
           <h3 className="text-base font-bold text-white mb-4">
             {isAdmin ? 'Active Borrowed Items' : 'Your Active Borrowed Items'}
@@ -283,7 +305,7 @@ export default function ReturnItem({
                     <th className="p-3">Borrower</th>
                     <th className="p-3">Component</th>
                     <th className="p-3">Qty</th>
-                    <th className="p-3">Return Quality</th>
+                    {!isAdmin && <th className="p-3">Return Quality</th>}
                     <th className="p-3">Action</th>
                   </tr>
                 </thead>
@@ -308,35 +330,52 @@ export default function ReturnItem({
                         <td className="p-3 font-semibold text-neutral-100">
                           {log.quantity_borrowed}
                         </td>
+
+                        {!isAdmin && (
+                          <td className="p-3">
+                            <select
+                              aria-label={`Return quality for ${
+                                log.components?.name || log.id
+                              }`}
+                              value={currentQuality}
+                              onChange={(e) =>
+                                handleQualityChange(log.id, e.target.value)
+                              }
+                              className="bg-[#141414] border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-100 focus:outline-none focus:border-emerald-500"
+                            >
+                              {RETURN_QUALITIES.map((quality) => (
+                                <option key={quality} value={quality}>
+                                  {quality}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        )}
+
                         <td className="p-3">
-                          <select
-                            aria-label={`Return quality for ${
-                              log.components?.name || log.id
-                            }`}
-                            value={currentQuality}
-                            onChange={(e) =>
-                              handleQualityChange(log.id, e.target.value)
-                            }
-                            className="bg-[#141414] border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-100 focus:outline-none focus:border-emerald-500"
-                          >
-                            {RETURN_QUALITIES.map((quality) => (
-                              <option key={quality} value={quality}>
-                                {quality}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="p-3">
-                          <button
-                            type="button"
-                            disabled={returningId === log.id}
-                            onClick={() => handleReturn(log.id)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded text-xs font-semibold disabled:opacity-60 transition"
-                          >
-                            {returningId === log.id
-                              ? 'Returning...'
-                              : 'Return Item'}
-                          </button>
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              disabled={returningId === log.id}
+                              onClick={() => handleMarkLost(log)}
+                              className="bg-amber-950/70 hover:bg-amber-900/80 text-amber-300 border border-amber-700/60 px-3.5 py-1.5 rounded text-xs font-semibold disabled:opacity-60 transition"
+                            >
+                              {returningId === log.id
+                                ? 'Updating...'
+                                : 'Mark as Lost'}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={returningId === log.id}
+                              onClick={() => handleReturn(log.id)}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-1.5 rounded text-xs font-semibold disabled:opacity-60 transition"
+                            >
+                              {returningId === log.id
+                                ? 'Returning...'
+                                : 'Return Item'}
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

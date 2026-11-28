@@ -3,7 +3,7 @@ const supabase = require('../config/supabase');
 
 const router = express.Router();
 
-const ALLOWED_RETURN_QUALITIES = ['Good', 'Fair', 'Damaged'];
+const ALLOWED_RETURN_QUALITIES = ['Good', 'Fair', 'Damaged', 'Lost'];
 
 // Borrow Item (Check-out)
 router.post('/borrow', async (req, res) => {
@@ -67,14 +67,14 @@ router.post('/borrow', async (req, res) => {
   });
 });
 
-// Return Item (Check-in) with return_quality
+// Return Item (Check-in) or Mark as Lost with return_quality
 router.patch('/return/:logId', async (req, res) => {
   const { logId } = req.params;
   const requestedQuality = req.body?.return_quality || 'Good';
 
   if (!ALLOWED_RETURN_QUALITIES.includes(requestedQuality)) {
     return res.status(400).json({
-      error: 'Invalid return_quality. Must be Good, Fair, or Damaged.',
+      error: 'Invalid return_quality. Must be Good, Fair, Damaged, or Lost.',
     });
   }
 
@@ -88,16 +88,21 @@ router.patch('/return/:logId', async (req, res) => {
     return res.status(404).json({ error: 'Borrow log not found.' });
   }
 
-  if (log.returned_at || log.status === 'Returned') {
-    return res.status(400).json({ error: 'Item has already been returned.' });
+  if (log.returned_at || log.status === 'Returned' || log.status === 'Lost') {
+    return res
+      .status(400)
+      .json({ error: 'Item has already been returned or marked as lost.' });
   }
 
+  const isLost = requestedQuality === 'Lost';
+  const isDamagedReturn = requestedQuality === 'Damaged';
+  const isNonRestoring = isLost || isDamagedReturn;
   const returnedAt = new Date().toISOString();
 
   const { error: updateLogError } = await supabase
     .from('borrow_logs')
     .update({
-      status: 'Returned',
+      status: isLost ? 'Lost' : 'Returned',
       returned_at: returnedAt,
       return_quality: requestedQuality,
     })
@@ -117,11 +122,11 @@ router.patch('/return/:logId', async (req, res) => {
     return res.status(404).json({ error: 'Component not found.' });
   }
 
-  const isDamagedReturn = requestedQuality === 'Damaged';
   const currentQty = Number(component.quantity) || 0;
   const borrowedQty = Number(log.quantity_borrowed) || 0;
 
-  const updatedQuantity = isDamagedReturn
+  // Lost and Damaged items stay out of available stock; Good and Fair return to stock
+  const updatedQuantity = isNonRestoring
     ? currentQty
     : currentQty + borrowedQty;
 
@@ -147,7 +152,9 @@ router.patch('/return/:logId', async (req, res) => {
   }
 
   res.json({
-    message: 'Item returned successfully.',
+    message: isLost
+      ? 'Item marked as lost successfully.'
+      : 'Item returned successfully.',
     returned_at: returnedAt,
     return_quality: requestedQuality,
     component: updatedComponent,

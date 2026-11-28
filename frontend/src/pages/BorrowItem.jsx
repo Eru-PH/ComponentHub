@@ -20,7 +20,6 @@ export default function BorrowItem({
     user?.borrower_identity || user?.full_name || user?.email || '';
 
   const [borrowerName, setBorrowerName] = useState(accountBorrowerName);
-  // Map of { [componentId]: quantitySelected }
   const [selectedItems, setSelectedItems] = useState({});
 
   const fetchComponents = async () => {
@@ -216,17 +215,17 @@ export default function BorrowItem({
               </p>
             </div>
 
-            <div className="relative w-full sm:w-72">
+            <div className="relative w-full sm:w-72 flex items-center">
               <Search
                 size={15}
-                className="text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2"
+                className="text-neutral-400 absolute left-3 z-10 pointer-events-none"
               />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search name, category, or status..."
-                className="w-full pl-9 pr-3 py-1.5 bg-[#141414] border border-neutral-700 rounded text-neutral-100 placeholder:text-neutral-500 text-sm focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                placeholder="Search..."
+                className="w-full pl-9 pr-3 py-1.5 bg-[#141414] border border-neutral-700 rounded text-neutral-100 text-sm focus:outline-none focus:border-emerald-500"
               />
             </div>
           </div>
